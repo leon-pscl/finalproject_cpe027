@@ -14,24 +14,27 @@ Lecture audio file
 → RAG-based note generation
 → Structured lecture notes
 
-This iteration is strictly a UI and interaction prototype. Do not implement actual DSP algorithms, ASR models, embeddings, vector databases, LLM APIs, authentication, cloud storage, or backend processing yet.
+This iteration is primarily a UI and interaction prototype. Do not implement actual DSP algorithms, ASR models, embeddings, vector databases, LLM APIs, authentication, cloud storage, or backend processing yet. A lightweight FastAPI backend scaffold is included for service separation and API health checks only; lecture processing and project data remain mock-only.
 
 Use mock services and realistic demonstration data, but structure the application so that real APIs can replace the mocks in later iterations.
 
 TECHNOLOGY
 
-If no project stack already exists, use:
+Use the following project stack:
 
-- React
+- React 19
 - TypeScript
-- Vite
-- Tailwind CSS
+- Vite 6
+- Tailwind CSS 3.4
 - React Router
 - Lucide icons
 - Vitest and React Testing Library
 - ESLint and Prettier
+- Python and FastAPI for the backend scaffold
 
-Avoid unnecessary libraries. Do not use a backend or database in this iteration.
+Avoid unnecessary libraries. Do not add a database or implement actual backend processing in this iteration.
+
+Organize the application in separate top-level `frontend/` and `backend/` directories. The frontend should proxy `/api/` requests to the FastAPI service during development and through the web server in Docker. Keep mock workflow behavior in the frontend until real processing APIs are implemented.
 
 DESIGN DIRECTION
 

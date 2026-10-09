@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+coverage
+.git
+.vite
+*.tsbuildinfo
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
