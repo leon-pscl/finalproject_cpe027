@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import { PanelRightClose } from 'lucide-react';
-
-type Tab = 'chat' | 'transcriptions';
-type Message = { id: number; from: 'you' | 'assistant'; text: string };
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Bot, Gauge, Pause, PanelRightClose, Play } from 'lucide-react';
+import { formatTimestamp } from '../services/mock';
+import { useRecording } from '../recording/useRecording';
+import type { Tab } from '../recording/context';
 
 function Mascot() {
   return (
@@ -17,32 +17,81 @@ function Mascot() {
   );
 }
 
+const playerBtn =
+  'flex h-8 items-center gap-1.5 rounded px-2 text-xs hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
+
+function PlayerCard() {
+  const { fileName, stage, player, play, pause, cycleSpeed } = useRecording();
+  const hasAudio = fileName !== null;
+
+  if (!hasAudio) {
+    return <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>;
+  }
+
+  return (
+    <div className="rounded-3xl bg-accent/70 px-4 py-4 text-xs leading-5">
+      <p className="break-all">Audio Source: {fileName}</p>
+      <p className="flex items-center gap-1.5">
+        Status:
+        <span
+          aria-hidden="true"
+          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-green-600' : 'bg-amber-500'}`}
+        />
+        {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
+      </p>
+      <p>
+        (Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})
+      </p>
+      <p>Playback Speed: {player.speed}x</p>
+      <div className="mt-4 flex items-center justify-between">
+        <button type="button" onClick={cycleSpeed} className={playerBtn} aria-label={`Change speed, now ${player.speed}x`}>
+          <Gauge size={14} aria-hidden="true" /> Speed
+        </button>
+        <button type="button" onClick={play} disabled={stage !== 'ready' || player.playing} className={playerBtn}>
+          <Play size={14} aria-hidden="true" /> Play
+        </button>
+        <button type="button" onClick={pause} disabled={stage !== 'ready' || !player.playing} className={playerBtn}>
+          <Pause size={14} aria-hidden="true" /> Pause
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
-  const [tab, setTab] = useState<Tab>('chat');
+  const { tab, setTab, messages, ask, stage } = useRecording();
   const [draft, setDraft] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: 'end' });
+  }, [messages, tab]);
 
   const send = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const text = draft.trim();
-    if (!text) return;
-    const id = Date.now();
-    setMessages((current) => [
-      ...current,
-      { id, from: 'you', text },
-      { id: id + 1, from: 'assistant', text: 'Demo reply: lecture Q&A is not connected yet.' },
-    ]);
+    if (!draft.trim()) return;
+    ask(draft);
     setDraft('');
+    setTab('chat');
   };
 
   const tabClass = (active: boolean, side: 'l' | 'r') =>
-    `h-8 px-6 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
+    `h-8 px-5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
       side === 'l' ? 'rounded-l-full' : 'rounded-r-full'
     } ${active ? 'bg-accent' : 'bg-paper'}`;
 
+  const tabButton = (id: Tab, label: string, side: 'l' | 'r') => (
+    <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={tabClass(tab === id, side)}>
+      {label}
+    </button>
+  );
+
+  const showMascot = tab === 'chat' && messages.length === 0 && stage === 'idle';
+
   return (
     <aside aria-label="Assistant" className="flex h-full flex-col">
-      <div className="p-2">
+      {/* Header row: collapse toggle and tabs share one baseline (wireframes 4 and 5). */}
+      <div className="grid grid-cols-[2rem_1fr_2rem] items-center gap-2 p-2">
         <button
           type="button"
           onClick={onCollapse}
@@ -51,36 +100,42 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
         >
           <PanelRightClose size={18} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className="mx-auto flex h-44 w-4/5 items-start justify-center border border-ink">
-        <Mascot />
-      </div>
-
-      <div className="mt-6 flex min-h-0 flex-1 flex-col border-t border-ink p-3">
         <div role="tablist" aria-label="Assistant views" className="mx-auto flex rounded-full border border-neutral-500">
-          <button type="button" role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')} className={tabClass(tab === 'chat', 'l')}>
-            Chat
-          </button>
-          <button type="button" role="tab" aria-selected={tab === 'transcriptions'} onClick={() => setTab('transcriptions')} className={tabClass(tab === 'transcriptions', 'r')}>
-            Transcriptions
-          </button>
+          {tabButton('chat', 'Chat', 'l')}
+          {tabButton('transcriptions', 'Transcriptions', 'r')}
         </div>
+        <span />
+      </div>
 
-        <div role="tabpanel" className="mt-3 flex-1 space-y-2 overflow-y-auto text-sm" aria-live="polite">
+      {showMascot ? (
+        <div className="mx-auto mt-2 flex h-44 w-4/5 items-start justify-center border border-ink">
+          <Mascot />
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-ink p-3">
+        <div role="tabpanel" className="flex-1 space-y-3 overflow-y-auto text-sm" aria-live="polite">
           {tab === 'chat' ? (
             messages.length === 0 ? (
               <p className="text-neutral-500">Ask a question about your lecture.</p>
             ) : (
-              messages.map((message) => (
-                <p key={message.id} className={message.from === 'you' ? 'text-right' : ''}>
-                  <span className="inline-block max-w-full border border-neutral-400 px-2 py-1">{message.text}</span>
-                </p>
-              ))
+              messages.map((message) =>
+                message.from === 'you' ? (
+                  <p key={message.id} className="rounded-md bg-neutral-200 px-3 py-2">
+                    {message.text}
+                  </p>
+                ) : (
+                  <div key={message.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
+                    <Bot size={18} aria-label="Assistant" className="mt-0.5" />
+                    <p>{message.text}</p>
+                  </div>
+                ),
+              )
             )
           ) : (
-            <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>
+            <PlayerCard />
           )}
+          <div ref={endRef} />
         </div>
 
         <form onSubmit={send} className="mt-3 rounded-md border border-dashed border-ink p-2">

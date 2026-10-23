@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Mic, PanelLeftClose, Pencil, Search, Settings } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { useRecording } from '../recording/useRecording';
 
 const demoChats = ['Conversation 1', 'Conversation 2'];
 
@@ -12,6 +13,7 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const { user, logout } = useAuth();
+  const { reset } = useRecording();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -28,7 +30,7 @@ export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
       </div>
 
       <div className="px-1">
-        <NavLink to="/new-transcription" className={itemClass}>
+        <NavLink to="/new-transcription" onClick={reset} className={itemClass}>
           <Pencil size={18} aria-hidden="true" /> New Note
         </NavLink>
         <NavLink to="/recent-lectures" className={itemClass}>
