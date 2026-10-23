@@ -11,25 +11,26 @@ import {
   Gauge,
   ListFilter,
   Mic,
-  MoonStar,
   NotebookPen,
   Pencil,
   Play,
-  Plus,
   Search,
   Sparkles,
-  SunMedium,
   Trash2,
   Upload,
 } from 'lucide-react';
 import {
   Link,
-  NavLink,
+  Navigate,
   Route,
   Routes,
   useNavigate,
   useParams,
 } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthProvider';
+import { ProtectedRoute } from './auth/ProtectedRoute';
+import AppShell from './layouts/AppShell';
+import LoginPage from './pages/LoginPage';
 import {
   buildLectureProject,
   createBlobFromText,
@@ -160,106 +161,27 @@ const seedLectures: LectureProject[] = [
 
 function App() {
   const [lectures, setLectures] = useState<LectureProject[]>(seedLectures);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    return prefersDark ? 'dark' : 'light';
-  });
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
 
   const updateLecture = (lectureId: string, updater: (lecture: LectureProject) => LectureProject) => {
     setLectures((current) => current.map((project) => (project.id === lectureId ? updater(project) : project)));
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/75">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link to="/" className="flex items-center gap-3" aria-label="Go to dashboard">
-            <Logo />
-            <div>
-              <div className="text-base font-semibold">LectureFlow</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">DSP transcription workspace</div>
-            </div>
-          </Link>
-          <nav aria-label="Main navigation" className="hidden items-center gap-2 md:flex">
-            <NavItem to="/" label="Dashboard" />
-            <NavItem to="/new-transcription" label="New transcription" />
-            <NavItem to="/recent-lectures" label="Recent lectures" />
-          </nav>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            >
-              {theme === 'dark' ? <SunMedium size={18} /> : <MoonStar size={18} />}
-            </button>
-            <Link
-              to="/new-transcription"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-            >
-              <Plus size={16} />
-              Process a lecture
-            </Link>
-          </div>
-        </div>
-        <div className="border-t border-slate-200 px-4 py-2 md:hidden dark:border-slate-800">
-          <nav aria-label="Mobile navigation" className="flex items-center gap-2 overflow-x-auto">
-            <NavItem to="/" label="Dashboard" compact />
-            <NavItem to="/new-transcription" label="New" compact />
-            <NavItem to="/recent-lectures" label="Recent" compact />
-          </nav>
-        </div>
-      </header>
-
-      <main id="main-content" className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <Routes>
-          <Route path="/" element={<DashboardPage lectures={lectures} />} />
-          <Route path="/new-transcription" element={<NewTranscriptionPage updateLectures={setLectures} />} />
-          <Route path="/processing/:id" element={<ProcessingPage lectures={lectures} updateLecture={updateLecture} />} />
-          <Route path="/results/:id" element={<ResultsPage lectures={lectures} updateLecture={updateLecture} />} />
-          <Route path="/recent-lectures" element={<RecentLecturesPage lectures={lectures} setLectures={setLectures} />} />
-        </Routes>
-      </main>
-    </div>
-  );
-}
-
-function NavItem({ to, label, compact = false }: { to: string; label: string; compact?: boolean }) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-          isActive
-            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100'
-        } ${compact ? 'min-h-[44px] min-w-[44px]' : 'min-h-[44px]'}`
-      }
-      end={to === '/'}
-    >
-      {label}
-    </NavLink>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-teal-200 bg-teal-50 text-teal-700 shadow-sm dark:border-teal-900 dark:bg-teal-950/70 dark:text-teal-300">
-      <div className="absolute inset-x-1 bottom-2 h-8 rounded-md border border-current/40 bg-white/20" />
-      <div className="absolute inset-y-2 left-3 w-0.5 rounded-full bg-current" />
-      <div className="absolute inset-y-2 left-4 w-0.5 rounded-full bg-current" />
-      <div className="absolute inset-y-2 left-5 w-0.5 rounded-full bg-current" />
-      <div className="absolute inset-y-2 left-6 w-0.5 rounded-full bg-current" />
-      <div className="absolute inset-y-2 right-3 w-0.5 rounded-full bg-current" />
-      <div className="absolute inset-y-2 right-4 w-0.5 rounded-full bg-current" />
-    </div>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<DashboardPage lectures={lectures} />} />
+            <Route path="/new-transcription" element={<NewTranscriptionPage updateLectures={setLectures} />} />
+            <Route path="/processing/:id" element={<ProcessingPage lectures={lectures} updateLecture={updateLecture} />} />
+            <Route path="/results/:id" element={<ResultsPage lectures={lectures} updateLecture={updateLecture} />} />
+            <Route path="/recent-lectures" element={<RecentLecturesPage lectures={lectures} setLectures={setLectures} />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }
 
