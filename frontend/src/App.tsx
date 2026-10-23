@@ -31,6 +31,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './layouts/AppShell';
 import LoginPage from './pages/LoginPage';
+import NewRecordingPage from './pages/NewRecordingPage';
 import {
   buildLectureProject,
   createBlobFromText,
@@ -173,7 +174,8 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route path="/" element={<DashboardPage lectures={lectures} />} />
-            <Route path="/new-transcription" element={<NewTranscriptionPage updateLectures={setLectures} />} />
+            <Route path="/new-transcription" element={<NewRecordingPage />} />
+            <Route path="/new-transcription/advanced" element={<NewTranscriptionPage updateLectures={setLectures} />} />
             <Route path="/processing/:id" element={<ProcessingPage lectures={lectures} updateLecture={updateLecture} />} />
             <Route path="/results/:id" element={<ResultsPage lectures={lectures} updateLecture={updateLecture} />} />
             <Route path="/recent-lectures" element={<RecentLecturesPage lectures={lectures} setLectures={setLectures} />} />

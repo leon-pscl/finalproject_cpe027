@@ -3,6 +3,7 @@ import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 import RightPanel from '../components/RightPanel';
 import Sidebar from '../components/Sidebar';
+import { RecordingProvider } from '../recording/RecordingProvider';
 
 const isDesktop = () =>
   typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1024px)').matches;
@@ -11,6 +12,14 @@ const openBtn =
   'flex h-8 w-8 items-center justify-center border border-ink bg-paper hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink';
 
 export default function AppShell() {
+  return (
+    <RecordingProvider>
+      <ShellLayout />
+    </RecordingProvider>
+  );
+}
+
+function ShellLayout() {
   const [leftOpen, setLeftOpen] = useState(isDesktop);
   const [rightOpen, setRightOpen] = useState(isDesktop);
   const anyDrawerOpen = (leftOpen || rightOpen) && !isDesktop();
