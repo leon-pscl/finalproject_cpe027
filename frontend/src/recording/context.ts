@@ -7,20 +7,44 @@ export type Tab = 'chat' | 'transcriptions';
 export type ChatMessage = { id: number; from: 'you' | 'assistant'; text: string };
 export type PlayerState = { currentTime: number; duration: number; playing: boolean; speed: number };
 
-export type RecordingContextValue = {
+/** One note session = one chat in the sidebar. Persisted per user. */
+export type ChatSession = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
   stage: Stage;
-  /** 0-100 progress of the current loading stage */
+  fileName: string | null;
+  /** Fallback duration in seconds (used when the audio element has no metadata). */
+  duration: number;
+  transcript: TranscriptSegment[];
+  messages: ChatMessage[];
+};
+
+export type RecordingContextValue = {
+  chats: ChatSession[];
+  activeId: string | null;
+
+  // Derived from the active chat (idle defaults when there is none).
+  stage: Stage;
+  /** 0-100 progress of the active chat's current loading stage */
   progress: number;
   fileName: string | null;
   fileError: string | null;
   transcript: TranscriptSegment[];
   messages: ChatMessage[];
   player: PlayerState;
-  /** Which tab the right panel shows. Lives here so the page can switch it. */
+
+  /** Which tab the right panel shows. */
   tab: Tab;
   setTab: (tab: Tab) => void;
+
+  /** Starts a fresh chat (or reuses the active one if it is still empty). */
+  newNote: () => void;
+  selectChat: (id: string) => void;
+  deleteChat: (id: string) => void;
+
   start: (file: File) => void;
-  reset: () => void;
   ask: (text: string) => void;
   play: () => void;
   pause: () => void;
