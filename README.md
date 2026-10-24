@@ -1,5 +1,5 @@
 # LectureFlow
-
+67
 LectureFlow is a lecture transcription prototype organized as separate frontend and backend applications:
 
 - `frontend/` — React 19, Vite 6, TypeScript, and Tailwind CSS 3.4. The current workflow and generated lecture data remain mock-only.
