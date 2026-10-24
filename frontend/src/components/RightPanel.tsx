@@ -4,19 +4,6 @@ import { formatTimestamp } from '../services/mock';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
 
-function Mascot() {
-  return (
-    <svg viewBox="0 0 120 100" role="img" aria-label="Assistant" className="h-28 w-32">
-      <g fill="none" stroke="#000" strokeWidth="1.5">
-        <path d="M60 24V8h14" />
-        <rect x="30" y="24" width="60" height="50" rx="14" />
-        <path d="M14 50h16M90 50h16" />
-        <path d="M52 42v10M68 42v10" strokeWidth="2" />
-      </g>
-    </svg>
-  );
-}
-
 const playerBtn =
   'flex h-8 items-center gap-1.5 rounded px-2 text-xs hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
 
@@ -59,7 +46,7 @@ function PlayerCard() {
 }
 
 export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
-  const { tab, setTab, messages, ask, stage } = useRecording();
+  const { tab, setTab, messages, ask } = useRecording();
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -86,8 +73,6 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
     </button>
   );
 
-  const showMascot = tab === 'chat' && messages.length === 0 && stage === 'idle';
-
   return (
     <aside aria-label="Assistant" className="flex h-full flex-col">
       {/* Header row: collapse toggle and tabs share one baseline (wireframes 4 and 5). */}
@@ -107,13 +92,7 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
         <span />
       </div>
 
-      {showMascot ? (
-        <div className="mx-auto mt-2 flex h-44 w-4/5 items-start justify-center border border-ink">
-          <Mascot />
-        </div>
-      ) : null}
-
-      <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-ink p-3">
+      <div className="flex min-h-0 flex-1 flex-col border-t border-ink p-3">
         <div role="tabpanel" className="flex-1 space-y-3 overflow-y-auto text-sm" aria-live="polite">
           {tab === 'chat' ? (
             messages.length === 0 ? (
