@@ -12,8 +12,8 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 const iconBtn =
   'flex h-8 w-8 shrink-0 items-center justify-center hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink';
 
-export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
-  const { user, logout } = useAuth();
+export default function Sidebar({ onCollapse, onLogout }: { onCollapse: () => void; onLogout: () => void }) {
+  const { user } = useAuth();
   const { chats, activeId, newNote, selectChat, deleteChat } = useRecording();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -105,7 +105,7 @@ export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           <div className="absolute bottom-full left-2 right-2 mb-1 border border-ink bg-paper">
             <button
               type="button"
-              onClick={logout}
+              onClick={onLogout}
               className="block min-h-11 w-full px-3 text-left text-sm hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
             >
               Sign out
