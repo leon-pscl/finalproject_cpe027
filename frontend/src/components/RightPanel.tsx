@@ -49,6 +49,14 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
   const { tab, setTab, messages, ask } = useRecording();
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'end' });
@@ -121,12 +129,20 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
           <label htmlFor="chat-input" className="sr-only">
             Message
           </label>
-          <input
+          <textarea
             id="chat-input"
+            ref={inputRef}
+            rows={1}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                if (draft.trim()) send(event as unknown as FormEvent<HTMLFormElement>);
+              }
+            }}
             placeholder="Input Text"
-            className="h-10 w-full border border-ink bg-paper px-2 text-sm shadow-[inset_2px_0_0_#000,inset_0_-2px_0_#000] focus:outline-none focus:ring-2 focus:ring-ink"
+            className="min-h-10 w-full resize-none overflow-hidden border border-ink bg-paper px-2 py-2 text-sm shadow-[inset_2px_0_0_#000,inset_0_-2px_0_#000] focus:outline-none focus:ring-2 focus:ring-ink"
           />
         </form>
       </div>

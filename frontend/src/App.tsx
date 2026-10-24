@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type React
 import {
   AlertCircle,
   AudioLines,
+  Check,
   ChevronDown,
   Copy,
   FileText,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import {
   Navigate,
@@ -576,7 +578,13 @@ function ProcessingPage({
                           : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
                   }`}
                 >
-                  {isFailed ? '!' : isCompleted ? '✓' : index + 1}
+                  {isFailed ? (
+                    <X className="h-3.5 w-3.5" />
+                  ) : isCompleted ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    index + 1
+                  )}
                 </span>
                 <span className={`text-sm ${isCurrent ? 'font-medium text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}`}>
                   {stage === 'validating'
