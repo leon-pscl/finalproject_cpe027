@@ -14,6 +14,8 @@ export type ChatSession = {
   updatedAt: number;
   stage: Stage;
   fileName: string | null;
+  /** Backend transcription job for this chat (present while processing, kept for cleanup). */
+  jobId?: string;
   /** Fallback duration in seconds (used when the audio element has no metadata). */
   duration: number;
   transcript: TranscriptSegment[];

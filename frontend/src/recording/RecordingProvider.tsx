@@ -1,20 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/useAuth';
-import {
-  formatTimestamp,
-  generateNotes,
-  generateTranscript,
-  inspectAudio,
-  validateAudio,
-  type TranscriptSegment,
-} from '../services/mock';
+import { formatTimestamp, validateAudio, type TranscriptSegment } from '../services/mock';
+import { deleteJob, fetchJob, submitTranscription, toTranscript } from '../services/api';
 import { deleteAudio, loadAudio, saveAudio } from './audioStore';
 import { RecordingContext, type ChatMessage, type ChatSession, type PlayerState, type Stage, type Tab } from './context';
-import { NOTES_REQUEST, stripExtension } from './format';
+import { stripExtension } from './format';
 
 const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
-const TRANSCRIBE_MS = 3000;
-const NOTES_MS = 2500;
+const POLL_MS = 1500;
+const MAX_POLL_ERRORS = 8;
 const DEFAULT_TITLE = 'New note';
 
 const idlePlayer: PlayerState = { currentTime: 0, duration: 0, playing: false, speed: 1 };
@@ -48,7 +42,7 @@ function loadSaved(key: string): Saved {
     const chats = (Array.isArray(parsed.chats) ? parsed.chats : [])
       .filter((chat): chat is ChatSession => !!chat && typeof chat.id === 'string' && Array.isArray(chat.messages))
       .map((chat) => {
-        if (!isProcessing(chat)) return chat;
+        if (!isProcessing(chat) || chat.jobId) return chat; // chats with a backend job resume polling
         void deleteAudio(chat.id);
         return { ...chat, stage: 'idle' as Stage, fileName: null, transcript: [], duration: 0 };
       });
@@ -59,12 +53,14 @@ function loadSaved(key: string): Saved {
   }
 }
 
-/** Demo-only: picks the transcript segment sharing the most words with the question. */
-function mockAnswer(question: string, transcript: TranscriptSegment[]): string {
+/**
+ * Interim answer: returns the real transcript segment sharing the most words with the question.
+ * Replaced by embedding retrieval + a grounded LLM answer in a later step.
+ */
+function transcriptLookup(question: string, transcript: TranscriptSegment[]): string {
   if (transcript.length === 0) return 'Upload a recording first, then ask me about it.';
   if (/notes|summary|summari[sz]e|definitions?/i.test(question)) {
-    const sections = generateNotes(transcript).map((note) => note.section);
-    return `Study notes are ready: ${sections.join(', ')}.`;
+    return 'Structured study notes are not built yet. For now I can point you to the most relevant transcript moment.';
   }
   const words = question.toLowerCase().match(/[a-z]{4,}/g) ?? [];
   let best = transcript[0];
@@ -95,7 +91,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const blobsRef = useRef(new Map<string, Blob>());
-  const timersRef = useRef(new Map<string, { stage: Stage; at: number }>());
+  const pollErrorsRef = useRef(new Map<string, number>());
   const msgRef = useRef(0);
 
   useEffect(() => {
@@ -172,49 +168,74 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     };
   }, [activeId, activeFileName, attachAudio, teardownAudio]);
 
-  /* ---------- simulated pipeline: runs for every chat that is processing, not just the open one ---------- */
+  /* ---------- real pipeline: poll the backend job of every chat that is processing ---------- */
+  const failChat = useCallback((id: string, message: string) => {
+    setFileError(message);
+    setChats((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, stage: 'idle' as Stage, fileName: null, transcript: [], duration: 0, jobId: undefined, updatedAt: Date.now() }
+          : item,
+      ),
+    );
+    setProgressById(({ [id]: _removed, ...rest }) => rest);
+    pollErrorsRef.current.delete(id);
+    void deleteAudio(id);
+  }, []);
+
   const processingCount = chats.filter(isProcessing).length;
   useEffect(() => {
     if (processingCount === 0) return;
     const timer = window.setInterval(() => {
-      const now = Date.now();
-      const updates: Record<string, number> = {};
-      const finished: ChatSession[] = [];
-
       for (const chat of chatsRef.current) {
-        if (!isProcessing(chat)) continue;
-        let entry = timersRef.current.get(chat.id);
-        if (!entry || entry.stage !== chat.stage) {
-          entry = { stage: chat.stage, at: now };
-          timersRef.current.set(chat.id, entry);
-        }
-        const total = chat.stage === 'transcribing' ? TRANSCRIBE_MS : NOTES_MS;
-        const pct = Math.min(100, ((now - entry.at) / total) * 100);
-        updates[chat.id] = pct >= 100 ? 0 : pct;
-        if (pct >= 100) finished.push(chat);
-      }
-
-      setProgressById((current) => ({ ...current, ...updates }));
-
-      for (const chat of finished) {
-        const toNotes = chat.stage === 'transcribing';
-        const message = toNotes
-          ? makeMessage('you', NOTES_REQUEST)
-          : makeMessage(
-              'assistant',
-              `Notes ready (${generateNotes([]).length} sections). Ask me about any part of the lecture.`,
+        if (!isProcessing(chat) || !chat.jobId) continue;
+        const { id, jobId } = chat;
+        void (async () => {
+          try {
+            const job = await fetchJob(jobId as string);
+            pollErrorsRef.current.delete(id);
+            if (job === null) return failChat(id, 'The server no longer has this transcription. Please upload the recording again.');
+            if (job.status === 'failed') return failChat(id, job.error ?? 'Transcription failed.');
+            if (job.status !== 'completed') {
+              setProgressById((current) => ({ ...current, [id]: Math.round(job.progress * 100) }));
+              return;
+            }
+            const segments = toTranscript(job);
+            const dsp = job.dsp;
+            const dspNote = dsp?.applied
+              ? ` Audio enhanced in ${(dsp.seconds ?? 0).toFixed(1)} s (estimated SNR ${(dsp.snr_est_before_db ?? 0).toFixed(1)} → ${(dsp.snr_est_after_db ?? 0).toFixed(1)} dB).`
+              : dsp?.error
+                ? ` Enhancement was skipped (${dsp.error}); the original audio was transcribed.`
+                : '';
+            const note =
+              segments.length === 0
+                ? 'No speech was detected in this recording.'
+                : `Transcript ready: ${segments.length} segments${job.language ? ` (${job.language})` : ''}.${dspNote} Ask me about any part of the lecture.`;
+            setChats((current) =>
+              current.map((item) =>
+                item.id === id && item.stage === 'transcribing'
+                  ? {
+                      ...item,
+                      stage: 'ready' as Stage,
+                      transcript: segments,
+                      duration: job.duration || item.duration,
+                      messages: [...item.messages, makeMessage('assistant', note)],
+                      updatedAt: Date.now(),
+                    }
+                  : item,
+              ),
             );
-        setChats((current) =>
-          current.map((item) =>
-            item.id === chat.id && item.stage === chat.stage
-              ? { ...item, stage: toNotes ? 'generatingNotes' : 'ready', messages: [...item.messages, message], updatedAt: now }
-              : item,
-          ),
-        );
+            setProgressById(({ [id]: _removed, ...rest }) => rest);
+          } catch {
+            const errors = (pollErrorsRef.current.get(id) ?? 0) + 1;
+            pollErrorsRef.current.set(id, errors);
+            if (errors >= MAX_POLL_ERRORS) failChat(id, 'Lost connection to the server while transcribing.');
+          }
+        })();
       }
-    }, 100);
+    }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [processingCount, makeMessage]);
+  }, [processingCount, makeMessage, failChat]);
 
   /* ---------- chat actions ---------- */
   const newNote = useCallback(() => {
@@ -239,11 +260,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteChat = useCallback((id: string) => {
+    const jobId = chatsRef.current.find((chat) => chat.id === id)?.jobId;
+    if (jobId) void deleteJob(jobId);
     setChats((existing) => existing.filter((chat) => chat.id !== id));
     setActiveId((current) => (current === id ? null : current));
     setProgressById(({ [id]: _removed, ...rest }) => rest);
     blobsRef.current.delete(id);
-    timersRef.current.delete(id);
+    pollErrorsRef.current.delete(id);
     void deleteAudio(id);
   }, []);
 
@@ -265,26 +288,26 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       }
       const id = target.id;
 
-      const segments = generateTranscript();
-      const info = inspectAudio(file);
-      const duration = Math.max(info?.estimatedDuration ?? 0, segments[segments.length - 1].start + 30);
       const now = Date.now();
 
       blobsRef.current.set(id, file);
-      timersRef.current.delete(id);
+      pollErrorsRef.current.delete(id);
       void saveAudio(id, file);
 
       setChats((existing) =>
         existing.map((chat) =>
           chat.id === id
-            ? { ...chat, title: stripExtension(file.name), fileName: file.name, transcript: segments, duration, stage: 'transcribing', updatedAt: now }
+            ? { ...chat, title: stripExtension(file.name), fileName: file.name, transcript: [], duration: 0, jobId: undefined, stage: 'transcribing', updatedAt: now }
             : chat,
         ),
       );
+      submitTranscription(file)
+        .then((job) => setChats((existing) => existing.map((chat) => (chat.id === id ? { ...chat, jobId: job.id } : chat))))
+        .catch((error: unknown) => failChat(id, error instanceof Error ? error.message : 'Upload failed.'));
       setProgressById((current) => ({ ...current, [id]: 0 }));
       setTab('chat');
     },
-    [activeId],
+    [activeId, failChat],
   );
 
   const ask = useCallback(
@@ -300,7 +323,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       }
       const id = chat.id;
       const youMessage = makeMessage('you', question);
-      const botMessage = makeMessage('assistant', mockAnswer(question, chat.transcript));
+      const botMessage = makeMessage('assistant', transcriptLookup(question, chat.transcript));
       const now = Date.now();
       setChats((existing) =>
         existing.map((item) =>
