@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react';
 import {
   AlertCircle,
-  ArrowRight,
   AudioLines,
   ChevronDown,
   Copy,
-  FileAudio,
   FileText,
   FolderOpen,
   Gauge,
   ListFilter,
-  Mic,
   NotebookPen,
   Pencil,
   Play,
@@ -20,7 +17,6 @@ import {
   Upload,
 } from 'lucide-react';
 import {
-  Link,
   Navigate,
   Route,
   Routes,
@@ -31,7 +27,10 @@ import { AuthProvider } from './auth/AuthProvider';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './layouts/AppShell';
 import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
 import NewRecordingPage from './pages/NewRecordingPage';
+import RecordingsPage from './pages/RecordingsPage';
+import SearchPage from './pages/SearchPage';
 import {
   buildLectureProject,
   createBlobFromText,
@@ -83,85 +82,8 @@ const emptyForm: FormState = {
   dspSettings: getDspSettings('automatic'),
 };
 
-const demoAudio = new File(['audio-demo'], 'week-3-lecture.wav', { type: 'audio/wav' });
-
-const seedLectures: LectureProject[] = [
-  {
-    ...buildLectureProject({
-      title: 'Digital Signal Processing for Students',
-      subject: 'Signals and Systems',
-      instructor: 'Dr. Patel',
-      language: 'English',
-      file: demoAudio,
-      dspPreset: 'automatic',
-      dspSettings: getDspSettings('automatic'),
-    }),
-    id: 'lecture-completed',
-    status: 'Completed',
-    workflowState: 'completed',
-    createdAt: '2026-10-01T09:30:00.000Z',
-    processingDetails: {
-      originalFile: 'week-3-lecture.wav',
-      preset: 'automatic',
-      enabledOperations: ['noiseReduction', 'highPassFilter', 'loudnessNormalization', 'voiceActivityDetection', 'silenceRemoval', 'audioSegmentation'],
-      asrModel: 'Whisper-medium (demo)',
-      transcriptLanguage: 'English',
-      segmentCount: 5,
-      processingStatus: 'Completed',
-    },
-  },
-  {
-    ...buildLectureProject({
-      title: 'Recording Quality in Practice',
-      subject: 'Audio Engineering',
-      instructor: 'Prof. Nguyen',
-      language: 'English',
-      file: new File(['audio-demo'], 'recording-quality.mp3', { type: 'audio/mpeg' }),
-      dspPreset: 'quiet-room',
-      dspSettings: getDspSettings('quiet-room'),
-    }),
-    id: 'lecture-processing',
-    status: 'Processing',
-    workflowState: 'processingDSP',
-    createdAt: '2026-10-09T09:05:00.000Z',
-    processingDetails: {
-      originalFile: 'recording-quality.mp3',
-      preset: 'quiet-room',
-      enabledOperations: ['noiseReduction', 'highPassFilter', 'loudnessNormalization', 'voiceActivityDetection'],
-      asrModel: 'Whisper-medium (demo)',
-      transcriptLanguage: 'English',
-      segmentCount: 4,
-      processingStatus: 'Processing',
-    },
-  },
-  {
-    ...buildLectureProject({
-      title: 'Classroom Noise and Speech Recovery',
-      subject: 'Applied Acoustics',
-      instructor: 'Dr. Johnson',
-      language: 'English',
-      file: new File(['audio-demo'], 'classroom-noise.m4a', { type: 'audio/mp4' }),
-      dspPreset: 'noisy-classroom',
-      dspSettings: getDspSettings('noisy-classroom'),
-    }),
-    id: 'lecture-failed',
-    status: 'Failed',
-    workflowState: 'failed',
-    createdAt: '2026-10-08T15:40:00.000Z',
-    processingDetails: {
-      originalFile: 'classroom-noise.m4a',
-      preset: 'noisy-classroom',
-      enabledOperations: ['noiseReduction', 'highPassFilter', 'loudnessNormalization', 'voiceActivityDetection', 'silenceRemoval', 'audioSegmentation'],
-      asrModel: 'Whisper-medium (demo)',
-      transcriptLanguage: 'English',
-      segmentCount: 3,
-      processingStatus: 'Failed',
-    },
-  },
-];
-
 function App() {
-  const [lectures, setLectures] = useState<LectureProject[]>(seedLectures);
+  const [lectures, setLectures] = useState<LectureProject[]>([]);
 
   const updateLecture = (lectureId: string, updater: (lecture: LectureProject) => LectureProject) => {
     setLectures((current) => current.map((project) => (project.id === lectureId ? updater(project) : project)));
@@ -173,7 +95,9 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route path="/" element={<DashboardPage lectures={lectures} />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/recordings" element={<RecordingsPage />} />
             <Route path="/new-transcription" element={<NewRecordingPage />} />
             <Route path="/new-transcription/advanced" element={<NewTranscriptionPage updateLectures={setLectures} />} />
             <Route path="/processing/:id" element={<ProcessingPage lectures={lectures} updateLecture={updateLecture} />} />
@@ -184,110 +108,6 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
-  );
-}
-
-function DashboardPage({ lectures }: { lectures: LectureProject[] }) {
-  const recent = lectures.slice(0, 3);
-
-  return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-xl">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">Academic productivity</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">LectureFlow</h1>
-            <p className="mt-3 text-base text-slate-600 dark:text-slate-300">
-              Turn recorded lectures into clean transcripts, traceable notes, and study-ready summaries.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/new-transcription"
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-            >
-              <Mic size={18} />
-              Process a lecture
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Recent lectures</h2>
-          <Link to="/recent-lectures" className="text-sm font-medium text-teal-700 hover:text-teal-600 dark:text-teal-300">
-            View all
-          </Link>
-        </div>
-
-        {recent.length === 0 ? (
-          <EmptyProjectState />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {recent.map((project) => (
-              <RecentProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function EmptyProjectState() {
-  return (
-    <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-800/60">
-      <FileAudio size={32} className="mb-3 text-slate-400" />
-      <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">No lecture projects yet</h3>
-      <p className="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
-        Upload a lecture recording to start a DSP-enhanced transcription and note-generation workflow.
-      </p>
-      <Link
-        to="/new-transcription"
-        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-      >
-        <Upload size={16} />
-        Start a new project
-      </Link>
-    </div>
-  );
-}
-
-function RecentProjectCard({ project }: { project: LectureProject }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:shadow-md dark:border-slate-700 dark:bg-slate-800/80">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="line-clamp-2 text-base font-semibold text-slate-900 dark:text-slate-100">{project.title}</h3>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{project.subject}</p>
-        </div>
-        <StatusBadge status={project.status} />
-      </div>
-      <dl className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-        <div className="flex justify-between gap-3">
-          <dt>Instructor</dt>
-          <dd>{project.instructor || 'Unassigned'}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt>Language</dt>
-          <dd>{project.language}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt>File</dt>
-          <dd className="truncate">{project.fileName}</dd>
-        </div>
-      </dl>
-      <div className="mt-4 flex items-center justify-between gap-3 pt-3">
-        <Link
-          to={project.status === 'Processing' ? `/processing/${project.id}` : project.status === 'Failed' ? `/recent-lectures` : `/results/${project.id}`}
-          className="inline-flex items-center gap-2 text-sm font-medium text-teal-700 hover:text-teal-600 dark:text-teal-300"
-        >
-          {project.status === 'Completed' ? 'Open result' : project.status === 'Processing' ? 'Resume' : 'Retry'}
-          <ArrowRight size={16} />
-        </Link>
-      </div>
-    </article>
   );
 }
 
