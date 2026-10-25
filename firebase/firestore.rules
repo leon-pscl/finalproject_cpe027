@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Owner-scoped lecture data. The Admin SDK (API/worker) bypasses these
+    // rules, so ownership is also enforced explicitly in repositories.py.
+    match /lectures/{lectureId} {
+      allow create: if signedIn() && request.resource.data.owner_id == request.auth.uid;
+      allow read, update, delete: if signedIn() && resource.data.owner_id == request.auth.uid;
+    }
+
+    match /lectures/{lectureId}/{path=**} {
+      allow read, write: if signedIn()
+        && get(/databases/$(database)/documents/lectures/$(lectureId)).data.owner_id == request.auth.uid;
+    }
+  }
+}
