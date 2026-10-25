@@ -1,13 +1,14 @@
 """Background transcription jobs (in-process queue; Redis + RQ replaces this in a later step)."""
+
 from __future__ import annotations
 
 import os
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from .asr import Segment, Transcript, transcribe_file
 from .config import get_settings
@@ -20,25 +21,27 @@ class Job:
     id: str
     status: str = "queued"  # queued | processing | completed | failed
     progress: float = 0.0
-    language: Optional[str] = None
+    language: str | None = None
     duration: float = 0.0
     segments: list[Segment] = field(default_factory=list)
-    error: Optional[str] = None
+    error: str | None = None
     created_at: float = field(default_factory=time.time)
-    path: Optional[str] = None
-    enhance: Optional[bool] = None
+    path: str | None = None
+    enhance: bool | None = None
     phase: str = "queued"  # queued | enhancing | transcribing | done
-    dsp: Optional[dict] = None
+    dsp: dict | None = None
 
 
 class JobStore:
-    def __init__(self, transcriber: Transcriber = transcribe_file, workers: Optional[int] = None):
+    def __init__(
+        self, transcriber: Transcriber = transcribe_file, workers: int | None = None
+    ):
         self._transcriber = transcriber
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=workers or get_settings().workers)
 
-    def submit(self, path: str, enhance: Optional[bool] = None) -> Job:
+    def submit(self, path: str, enhance: bool | None = None) -> Job:
         self._expire()
         job = Job(id=uuid.uuid4().hex, path=path, enhance=enhance)
         with self._lock:
@@ -46,7 +49,7 @@ class JobStore:
         self._pool.submit(self._run, job.id)
         return job
 
-    def get(self, job_id: str) -> Optional[Job]:
+    def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
 
@@ -74,12 +77,16 @@ class JobStore:
 
         try:
             result = self._transcriber(
-                job.path, on_progress=on_progress, on_segment=on_segment, on_phase=on_phase, enhance=job.enhance
+                job.path,
+                on_progress=on_progress,
+                on_segment=on_segment,
+                on_phase=on_phase,
+                enhance=job.enhance,
             )
             job.dsp = result.dsp
             job.language, job.duration = result.language, result.duration
             job.progress, job.status, job.phase = 1.0, "completed", "done"
-        except Exception as exc:  # surfaced to the client, not swallowed
+        except Exception as exc:  # noqa: BLE001 - surfaced to the client, not swallowed
             job.error, job.status = f"{type(exc).__name__}: {exc}", "failed"
         finally:
             # The browser keeps its own copy; the server does not retain raw audio after processing.
@@ -90,7 +97,11 @@ class JobStore:
     def _expire(self) -> None:
         cutoff = time.time() - get_settings().job_ttl_seconds
         with self._lock:
-            stale = [j for j in self._jobs.values() if j.created_at < cutoff and j.status in ("completed", "failed")]
+            stale = [
+                j
+                for j in self._jobs.values()
+                if j.created_at < cutoff and j.status in ("completed", "failed")
+            ]
             for j in stale:
                 self._jobs.pop(j.id, None)
 

@@ -1,10 +1,11 @@
 """Speech recognition with a pretrained Whisper model (faster-whisper). No training happens here."""
+
 from __future__ import annotations
 
 import math
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from . import dsp
 from .config import get_settings
@@ -26,7 +27,7 @@ class Transcript:
     language: str
     duration: float
     segments: list[Segment] = field(default_factory=list)
-    dsp: Optional[dict] = None  # enhancement report (None when enhancement was off)
+    dsp: dict | None = None  # enhancement report (None when enhancement was off)
 
 
 ProgressFn = Callable[[float], None]
@@ -60,13 +61,13 @@ def confidence_from_logprob(avg_logprob: float) -> float:
 
 def transcribe_file(
     path: str,
-    on_progress: Optional[ProgressFn] = None,
-    on_segment: Optional[SegmentFn] = None,
-    glossary: Optional[list[str]] = None,
+    on_progress: ProgressFn | None = None,
+    on_segment: SegmentFn | None = None,
+    glossary: list[str] | None = None,
     model=None,
-    enhance: Optional[bool] = None,
-    reverb_weight: Optional[float] = None,
-    on_phase: Optional[PhaseFn] = None,
+    enhance: bool | None = None,
+    reverb_weight: float | None = None,
+    on_phase: PhaseFn | None = None,
 ) -> Transcript:
     """Transcribe an audio/video file into timestamped segments.
 
@@ -74,7 +75,7 @@ def transcribe_file(
     """
     s = get_settings()
     audio = path
-    dsp_info: Optional[dict] = None
+    dsp_info: dict | None = None
     base = 0.0
     if s.enhance_default if enhance is None else enhance:
         if on_phase:
@@ -84,19 +85,23 @@ def transcribe_file(
                 dsp.load_audio(path),
                 rt60=s.dsp_rt60,
                 floor_db=s.dsp_floor_db,
-                reverb_weight=s.dsp_reverb_weight if reverb_weight is None else reverb_weight,
+                reverb_weight=s.dsp_reverb_weight
+                if reverb_weight is None
+                else reverb_weight,
                 noise_bias=s.dsp_noise_bias,
                 on_progress=(lambda p: on_progress(0.1 * p)) if on_progress else None,
             )
             audio, dsp_info, base = enhanced, report.as_dict(), 0.1
-        except Exception as exc:  # recorded in the result; transcription continues on the raw audio
+        except Exception as exc:  # noqa: BLE001 - recorded in the result; transcription continues on the raw audio
             dsp_info = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
     if on_phase:
         on_phase("transcribing")
     model = model or get_model()
     stream, info = model.transcribe(
         audio,
-        language=None if s.whisper_language.lower() in ("", "auto") else s.whisper_language,
+        language=None
+        if s.whisper_language.lower() in ("", "auto")
+        else s.whisper_language,
         beam_size=5,
         vad_filter=True,  # skip silence/noise; also reduces hallucinated text
         vad_parameters={"min_silence_duration_ms": 500},

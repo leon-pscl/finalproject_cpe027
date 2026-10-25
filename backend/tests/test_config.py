@@ -1,7 +1,6 @@
 import pytest
-from pydantic import ValidationError
-
 from app.config import Settings
+from pydantic import ValidationError
 
 
 def test_default_mode_is_mock_and_dev() -> None:

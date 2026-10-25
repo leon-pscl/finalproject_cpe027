@@ -41,7 +41,9 @@ class Settings(BaseSettings):
     per_user_daily_job_limit: int = Field(default=5, gt=0)
     per_user_lecture_limit: int = Field(default=25, gt=0)
     job_ttl_seconds: int = Field(default=24 * 3600, gt=0)
-    workers: int = Field(default=1, gt=0, validation_alias=AliasChoices("TRANSCRIBE_WORKERS", "workers"))
+    workers: int = Field(
+        default=1, gt=0, validation_alias=AliasChoices("TRANSCRIBE_WORKERS", "workers")
+    )
 
     # Firebase
     firebase_project_id: str | None = None
@@ -73,7 +75,9 @@ class Settings(BaseSettings):
     dsp_high_pass_cutoff_hz: float = Field(default=80.0, ge=1.0, le=500.0)
     dsp_spectral_gating_enabled: bool = False
     # dsp.py enhancement (used by /api/transcriptions and app.evaluate).
-    enhance_default: bool = Field(default=True, validation_alias=AliasChoices("ENHANCE_AUDIO", "enhance_default"))
+    enhance_default: bool = Field(
+        default=True, validation_alias=AliasChoices("ENHANCE_AUDIO", "enhance_default")
+    )
     dsp_rt60: float = 0.5
     dsp_floor_db: float = -15.0
     dsp_reverb_weight: float = 0.0  # 0 = denoise only

@@ -1,7 +1,7 @@
 import os
 import tempfile
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -41,12 +41,12 @@ class JobOut(BaseModel):
     id: str
     status: Literal["queued", "processing", "completed", "failed"]
     progress: float
-    language: Optional[str] = None
+    language: str | None = None
     duration: float = 0.0
     segments: list[SegmentOut] = []
-    error: Optional[str] = None
+    error: str | None = None
     phase: str = "queued"
-    dsp: Optional[dict] = None
+    dsp: dict | None = None
 
 
 def _to_out(job) -> JobOut:
@@ -92,9 +92,16 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     )
 
 
-@app.post("/api/transcriptions", status_code=202, response_model=JobOut, tags=["transcription"])
+@app.post(
+    "/api/transcriptions",
+    status_code=202,
+    response_model=JobOut,
+    tags=["transcription"],
+)
 async def create_transcription(
-    file: UploadFile = File(...), enhance: Optional[bool] = Form(None), store: JobStore = Depends(get_store)
+    file: UploadFile = File(...),  # noqa: B008
+    enhance: bool | None = Form(None),
+    store: JobStore = Depends(get_store),  # noqa: B008
 ) -> JobOut:
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -108,7 +115,10 @@ async def create_transcription(
             while chunk := await file.read(CHUNK):
                 size += len(chunk)
                 if size > limit:
-                    raise HTTPException(413, f"File exceeds the {get_settings().max_upload_mb} MB limit.")
+                    raise HTTPException(
+                        413,
+                        f"File exceeds the {get_settings().max_upload_mb} MB limit.",
+                    )
                 out.write(chunk)
         if size == 0:
             raise HTTPException(400, "The uploaded file is empty.")
@@ -122,7 +132,7 @@ async def create_transcription(
 
 
 @app.get("/api/transcriptions/{job_id}", response_model=JobOut, tags=["transcription"])
-def get_transcription(job_id: str, store: JobStore = Depends(get_store)) -> JobOut:
+def get_transcription(job_id: str, store: JobStore = Depends(get_store)) -> JobOut:  # noqa: B008
     job = store.get(job_id)
     if job is None:
         raise HTTPException(404, "Transcription not found.")
@@ -130,5 +140,5 @@ def get_transcription(job_id: str, store: JobStore = Depends(get_store)) -> JobO
 
 
 @app.delete("/api/transcriptions/{job_id}", status_code=204, tags=["transcription"])
-def delete_transcription(job_id: str, store: JobStore = Depends(get_store)) -> None:
+def delete_transcription(job_id: str, store: JobStore = Depends(get_store)) -> None:  # noqa: B008
     store.delete(job_id)
