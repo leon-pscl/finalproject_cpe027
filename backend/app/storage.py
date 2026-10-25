@@ -37,6 +37,12 @@ class StorageAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def create_signed_download_url(
+        self, storage_path: str, expires_in_minutes: int = 15
+    ) -> tuple[str, datetime]:
+        raise NotImplementedError
+
+    @abstractmethod
     def verify_signature(
         self, storage_path: str, expires_epoch: int, signature: str
     ) -> bool:
@@ -55,6 +61,11 @@ class StorageAdapter(ABC):
     def save_object(
         self, storage_path: str, data: bytes, content_type: str | None = None
     ) -> StoredObject:
+        raise NotImplementedError
+
+    @abstractmethod
+    def read_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        """Return object bytes and content type for a signed media read."""
         raise NotImplementedError
 
     @abstractmethod
@@ -81,9 +92,8 @@ class LocalStorageAdapter(StorageAdapter):
         return target
 
     def _metadata_path(self, storage_path: str) -> Path:
-        return self._full_path(storage_path).with_suffix(
-            self._full_path(storage_path).suffix + ".metadata.json"
-        )
+        full = self._full_path(storage_path)
+        return full.with_suffix(full.suffix + ".metadata.json")
 
     def _sign(self, storage_path: str, expires_epoch: int) -> str:
         message = f"{storage_path}:{expires_epoch}".encode()
@@ -103,9 +113,25 @@ class LocalStorageAdapter(StorageAdapter):
         self._write_metadata(storage_path, content_type)
         return url, expires_at
 
+    def create_signed_download_url(
+        self, storage_path: str, expires_in_minutes: int = 15
+    ) -> tuple[str, datetime]:
+        expires_at = datetime.now(UTC) + timedelta(minutes=expires_in_minutes)
+        expires_epoch = int(expires_at.timestamp())
+        signature = self._sign(storage_path, expires_epoch)
+        url = (
+            f"/api/storage/download/{quote(storage_path, safe='/')}"
+            f"?expires={expires_epoch}&signature={signature}"
+        )
+        return url, expires_at
+
     def verify_signature(
         self, storage_path: str, expires_epoch: int, signature: str
     ) -> bool:
+        try:
+            self._full_path(storage_path)
+        except ValueError:
+            return False
         if expires_epoch < int(datetime.now(UTC).timestamp()):
             return False
         expected = self._sign(storage_path, expires_epoch)
@@ -143,6 +169,26 @@ class LocalStorageAdapter(StorageAdapter):
         if content_type:
             self._write_metadata(storage_path, content_type)
         return StoredObject(storage_path, len(data), content_type)
+
+    def read_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        path = self._full_path(storage_path)
+        if not path.is_file():
+            raise FileNotFoundError("stored object does not exist")
+        if path.stat().st_size <= 0:
+            raise ValueError("stored object is empty")
+        content_type = self._read_metadata(storage_path)
+        if content_type is None:
+            content_type = mimetypes.guess_type(path.name)[0]
+        return path.read_bytes(), content_type
+
+    def download_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
+
+    def get_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
+
+    def open_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
 
     def delete_object(self, storage_path: str) -> None:
         path = self._full_path(storage_path)
@@ -191,6 +237,17 @@ class FirebaseStorageAdapter(StorageAdapter):
         )
         return url, expires_at
 
+    def create_signed_download_url(
+        self, storage_path: str, expires_in_minutes: int = 15
+    ) -> tuple[str, datetime]:
+        expires_at = datetime.now(UTC) + timedelta(minutes=expires_in_minutes)
+        url = self._blob(storage_path).generate_signed_url(
+            version="v4",
+            expiration=expires_at - datetime.now(UTC),
+            method="GET",
+        )
+        return url, expires_at
+
     def verify_signature(
         self, storage_path: str, expires_epoch: int, signature: str
     ) -> bool:
@@ -225,6 +282,25 @@ class FirebaseStorageAdapter(StorageAdapter):
         blob = self._blob(storage_path)
         blob.upload_from_string(data, content_type=content_type)
         return StoredObject(storage_path, len(data), content_type)
+
+    def read_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        blob = self._blob(storage_path)
+        blob.reload()
+        if not getattr(blob, "exists", True):
+            raise FileNotFoundError("stored object does not exist")
+        size = int(blob.size or 0)
+        if size <= 0:
+            raise ValueError("stored object is empty")
+        return blob.download_as_bytes(), getattr(blob, "content_type", None)
+
+    def download_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
+
+    def get_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
+
+    def open_object(self, storage_path: str) -> tuple[bytes, str | None]:
+        return self.read_object(storage_path)
 
     def delete_object(self, storage_path: str) -> None:
         from contextlib import suppress

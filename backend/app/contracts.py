@@ -143,6 +143,14 @@ class UploadCompleteResponse(BaseModel):
     message: str = "queued"
 
 
+class SignedDownloadUrlResponse(BaseModel):
+    storage_path: str
+    signed_download_url: str
+    signed_url: str | None = None
+    download_url: str | None = None
+    expires_at: datetime
+
+
 class LectureMetadata(BaseModel):
     lecture_id: str
     owner_id: str
