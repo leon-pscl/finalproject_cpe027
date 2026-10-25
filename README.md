@@ -57,7 +57,7 @@ The backend runs a pretrained Whisper model through [faster-whisper](https://git
 | `WHISPER_MODEL` | `small` | `tiny`/`base` faster, `medium`/`large-v3` more accurate (GPU advised) |
 | `WHISPER_LANGUAGE` | `auto` | set `en` or `tl` to force a language |
 | `WHISPER_COMPUTE_TYPE` | `int8` | use `float16` on GPU |
-| `MAX_UPLOAD_MB` | `300` | |
+| `MAX_UPLOAD_MB` | `512` | |
 
 ```sh
 WHISPER_MODEL=base docker compose up --build -d     # PowerShell: $env:WHISPER_MODEL="base"
@@ -65,16 +65,18 @@ WHISPER_MODEL=base docker compose up --build -d     # PowerShell: $env:WHISPER_M
 
 API: `POST /api/transcriptions` (multipart `file`) -> job id; `GET /api/transcriptions/{id}` -> status, progress, segments; `DELETE` removes it. The server deletes the raw audio as soon as processing ends.
 
+Recordings uploaded through `POST /api/lectures/...` are queued and processed by a worker inside the API process (media/DSP, then ASR, then `GET /api/lectures/{id}` reports `completed`). Set `WORKER_ENABLED=false` to disable it.
+
 Backend tests: `cd backend && pip install -r requirements-dev.txt && pytest` (stub model; no download needed).
 
-## DSP speech enhancement (runs before ASR)
+## DSP speech enhancement (off by default)
 
 `backend/app/dsp.py`, classical signal processing with no learned model:
 decode -> mono 16 kHz -> DC removal + 80 Hz high-pass -> **512-point STFT, Hann window, 75 % overlap** -> energy/band **VAD** -> noise PSD (minimum statistics + VAD-held estimate, so it tracks non-stationary noise) -> optional late-reverberation PSD (Lebart/Habets exponential-decay model) -> decision-directed **Wiener gain** applied to the complex STFT (noisy phase kept) -> **inverse STFT + overlap-add** -> loudness normalisation (-20 dBFS RMS, peak-limited). Long lectures run in 90 s blocks.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ENHANCE_AUDIO` | `true` | enhance before ASR (`false` = raw audio) |
+| `ENHANCE_AUDIO` | `false` | enable dsp.py before ASR for `POST /api/transcriptions` (the upload pipeline runs media.py DSP once) |
 | `DSP_REVERB_WEIGHT` | `0.0` | `0` = denoise only; `0.3-0.6` adds dereverberation |
 | `DSP_RT60` | `0.5` | assumed room reverberation time (s) |
 | `DSP_FLOOR_DB` | `-15` | maximum attenuation (limits musical noise) |

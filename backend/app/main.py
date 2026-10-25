@@ -1,5 +1,8 @@
+import logging
 import os
 import tempfile
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Literal
 
@@ -12,15 +15,44 @@ from app.contracts import ErrorCode
 from app.routers import lectures, storage
 
 from .config import get_settings
+from .dependencies import get_repository, get_storage
 from .jobs import JobStore
+from .worker import PipelineWorker
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".m4a", ".mp4", ".webm", ".ogg", ".flac"}
 CHUNK = 1024 * 1024
+
+
+@asynccontextmanager
+async def lifespan(instance: FastAPI):
+    """Run the upload pipeline worker for the lifetime of the app."""
+    settings = get_settings()
+    if not settings.worker_enabled:
+        logger.info("pipeline worker disabled (set WORKER_ENABLED=true to enable)")
+        yield
+        return
+    worker = PipelineWorker(get_repository(settings), get_storage(settings), settings)
+    thread = threading.Thread(
+        target=worker.run_forever, name="pipeline-worker", daemon=True
+    )
+    instance.state.worker = worker
+    instance.state.worker_thread = thread
+    thread.start()
+    logger.info("pipeline worker started (worker_id=%s)", worker.worker_id)
+    try:
+        yield
+    finally:
+        worker.stop()
+        thread.join(timeout=5)
+
 
 app = FastAPI(
     title="LectureFlow API",
     description="Lecture transcription API (pretrained faster-whisper).",
     version="0.3.0",
+    lifespan=lifespan,
 )
 
 
