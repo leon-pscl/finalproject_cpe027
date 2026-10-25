@@ -6,12 +6,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.auth import VerifiedUser
 from app.config import clear_settings_cache, get_settings
 from app.dependencies import clear_repository_cache, get_current_user
 from app.main import app
 from app.repositories import InMemoryLectureRepository, deterministic_job_id
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture

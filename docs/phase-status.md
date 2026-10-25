@@ -45,5 +45,33 @@
 - Firestore emulator integration: not run (Java and `firebase-tools` unavailable); Firestore path remains implemented but not live-verified.
 - Real provider/container checks: not run (safe local mode).
 
-## Remaining blockers before later gates
+## Step 4 progress
+- [x] Backend media/DSP module (`backend/app/media.py`) hardened for local processing.
+- [x] FFmpeg availability verified (`ffmpeg version 8.1.2-full_build-www.gyan.dev`).
+- [x] DSP configuration defaults: mock/safe local mode, `DSP_ENABLED=false`, bypass by default; Arm A 16 kHz mono loudnorm extraction always runs before any enhancement.
+- [x] Extracted enhancement stages now explicitly standardize channels/sample rate and use a zero-phase 80 Hz high-pass chain (`highpass=f=...,areverse,highpass=f=...,areverse`).
+- [x] Optional spectral gating, VAD bounding, and audio-duration guard are implemented in the media module; Arm A output remains the bypass behavior baseline.
+- [x] WAV parsing hardened for RIFF/WAVE and IEEE-float PCM; nonfinite samples are rewritten to zeros and reparsed before diagnostics.
+- [x] Path and temporary-directory safety added: storage-path escape rejection and temp roots inside the source tree.
+- [x] Stored-media processing can resolve media files through the configured local storage root.
+- [x] Frontend API client added with typed contracts, retryable errors, upload progress, auth-token boundary, and local proxy support (`/api` -> `http://localhost:8000`).
+- [x] `NewTranscriptionPage` now uploads through `initiate` -> signed PUT -> completion, derives lecture/job status from backend data, and shows progress while submitting.
+- [x] Development-only local bearer-token input added; mobile/prototype production builds do not expose token entry, and the token remains React state rather than being persisted.
+- [x] Visible upload progress and backend status messages added; retry feedback remains through the existing `ApiError` handling.
+
+## Step 4 verification
+- Ruff: passed (`ruff check backend`; 0 findings).
+- Backend tests: passed (`pytest` in `backend/`, 21 tests).
+  - `tests/test_media.py`: 9 tests passed (silence/bypass, stereo-to-mono normalization, runtime checks, VAD offsets, IEEE-float parsing, storage-path escape, stored media, missing audio).
+  - Existing adapter/auth/config/health/upload tests passed; 3 FastAPI/httpx deprecation warnings remain non-blocking.
+- Frontend lint: passed (`npm run lint`; 0 warnings/errors after fixing an unused limit destructuring in `api.ts`).
+- Frontend typecheck/build: passed (`npm run build`, `tsc -b && vite build`).
+- Frontend tests: mixed (`npm test -- --run`; 6 passed, 2 failed).
+  - Failing tests remain the same pre-existing `src/App.test.tsx` failures: protected routes render the sign-in page before authenticated LectureFlow content.
+  - Recording flows and chat flows passed.
+- FFmpeg: available and used by media tests (`8.1.2-full_build-www.gyan.dev` build).
+- Backend local smoke: FastAPI `TestClient` returned HTTP 200 from `/api/health` (`uvicorn` is not available as an installed CLI in this tool environment).
+- Frontend local smoke: Vite development server returned HTTP 200 at `http://localhost:5173/`; production build already passed.
+- Authenticated upload E2E remains owner-gated: local Firebase ID-token verification requires an available Firebase Admin setup/public user setup, and hosted provider work is not yet provisioned.
+- Manual localhost operator check can still use the Vite `/api` proxy to `http://localhost:8000` once a backend server process is available.
 - Cloud credentials, billing/region, worker service account, hosted provider keys, demo lecture consent, dataset access, FFmpeg installation, and owner-set tolerances/budget.
