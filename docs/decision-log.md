@@ -34,5 +34,21 @@ Each entry records a deviation from `docs/instructions.md` Rev 2.3, as required 
 - Why: owner chose safe local execution; credentials unconfirmed.
 - How applied: foundation uses mocks/emulator + local FFmpeg; hosted work only in separately authorized workflow; reject mock mode in production.
 
+## 2026-10-25 — Merge conflict markers repaired before continuing
+- Deviation: instead of continuing on top of the merge, the first task was repairing conflict markers that `278f551` and merge commit `a8df037` had committed.
+- Why: `backend/app/main.py` did not import (`SyntaxError`), `config.py` had two `Settings` classes, `requirements.txt` and `frontend/src/services/api.ts` were unusable, so nothing after the merge could be verified.
+- How applied: `a467340` — union merge for `main.py`/`requirements.txt`/`api.ts`; field-level merge for `config.py` keeping the owner's `max_upload_mb=512` and the `ENHANCE_AUDIO`/`TRANSCRIBE_WORKERS` env names; `585ced7` brings `ruff check`/`ruff format` (the `ci.yml` gate) back to pass.
+
+## 2026-10-25 — One DSP switch: `media.py` in the pipeline, `dsp.py` evaluation-only
+- Deviation: `enhance_default` now defaults to `false` (env `ENHANCE_AUDIO`, compose `${ENHANCE_AUDIO:-false}`), so `dsp.py` enhancement is only reachable from `app.evaluate` or an explicit `enhance` value on `POST /api/transcriptions`.
+- Why: two DSP implementations were live at once; only `media.py` implements the Step 4 contract (Arm A baseline, per-stage bypass, per-stage runtimes, diagnostics), and a second pass would double-count its effect.
+- How applied: the upload pipeline runs `LocalMediaService.validate_and_extract` once and calls `transcribe_file(..., enhance=False)`.
+
+## 2026-10-25 — Upload pipeline worker runs in-process behind `WORKER_ENABLED`
+- Deviation: partial Step 8 (worker wiring) executed before Step 5A and Steps 6-7, at the owner's direct request ("users upload a recording, then the DSP processes it").
+- Why: `upload_complete` created jobs nothing consumed, so the upload path was a dead end; no separate worker process exists yet.
+- How applied: `backend/app/worker.py` + FastAPI lifespan; `worker_enabled` (env `WORKER_ENABLED`, default true, forced false in `backend/tests/conftest.py`); claim -> validate -> preprocess -> transcribe -> completed/failed with a lease and heartbeat; stage, DSP configuration/runtimes/diagnostics and ASR metadata in `JobDocument.timings`; transcript written to `users/{owner}/{lecture}/transcript.json`.
+- Known limits (recorded, not hidden): `FirestoreLectureRepository.list_all_lectures()` returns `[]`, so a Firestore deployment needs a queued-jobs query (comment in `worker.py`); media temp outputs are not deleted on success (same behavior as the existing `POST /api/transcriptions` flow); chunks/embeddings/notes stages are not wired.
+
 ## Rules retained unchanged
 - No fabricated results, no silent mocks in production, owner isolation, private bucket, deletion, no committed secrets, no training, no second vector DB.
