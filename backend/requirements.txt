@@ -1,19 +1,10 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.34,<1
-<<<<<<< HEAD
-<<<<<<< HEAD
 pydantic-settings>=2.5,<3
 python-dotenv>=1,<2
 firebase-admin>=6,<7
-=======
-=======
->>>>>>> iteration_lim
 python-multipart>=0.0.12
 faster-whisper>=1.1,<2
 av>=14,<17  # av 18+ removed the open(metadata_errors=) argument faster-whisper uses
 scipy>=1.11,<2
 rapidfuzz>=3,<4
-<<<<<<< HEAD
->>>>>>> iteration_lim
-=======
->>>>>>> iteration_lim

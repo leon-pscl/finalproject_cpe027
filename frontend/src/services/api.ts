@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 /// <reference types="vite/client" />
 
 /**
@@ -780,9 +778,6 @@ function guessContentType(fileName: string): string {
   }
   return 'application/octet-stream';
 }
-=======
-=======
->>>>>>> iteration_lim
 import type { TranscriptSegment } from './mock';
 
 export type JobStatus = {
@@ -835,7 +830,3 @@ export async function deleteJob(id: string): Promise<void> {
 
 export const toTranscript = (job: JobStatus): TranscriptSegment[] =>
   job.segments.map((s) => ({ id: s.id, start: s.start, end: s.end, speaker: 'Lecturer', text: s.text, confidence: s.confidence }));
-<<<<<<< HEAD
->>>>>>> iteration_lim
-=======
->>>>>>> iteration_lim
