@@ -23,6 +23,7 @@ function emptyChat(): ChatSession {
     stage: 'idle',
     fileName: null,
     duration: 0,
+    storagePath: null,
     transcript: [],
     messages: [],
   };
@@ -397,4 +398,3 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   return <RecordingContext.Provider value={value}>{children}</RecordingContext.Provider>;
 }
-ss
