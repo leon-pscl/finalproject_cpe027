@@ -1,15 +1,15 @@
 """Tests use stub transcribers/models (test-only) so no model weights are needed."""
+
 import io
 import os
 import time
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import asr, main
 from app.asr import Segment, Transcript
 from app.jobs import JobStore
+from fastapi.testclient import TestClient
 
 
 def fake_transcriber(path, on_progress=None, on_segment=None, **_):
@@ -47,7 +47,9 @@ def wait_done(client, job_id, timeout=5):
 
 
 def upload(client, name="lecture.wav", data=b"RIFFxxxx"):
-    return client.post("/api/transcriptions", files={"file": (name, io.BytesIO(data), "audio/wav")})
+    return client.post(
+        "/api/transcriptions", files={"file": (name, io.BytesIO(data), "audio/wav")}
+    )
 
 
 def test_upload_transcribes_and_returns_segments():
@@ -57,7 +59,15 @@ def test_upload_transcribes_and_returns_segments():
     body = wait_done(client, res.json()["id"])
     assert body["status"] == "completed"
     assert body["language"] == "en" and body["duration"] == 10.0
-    assert body["segments"] == [{"id": "seg-1", "start": 1.0, "end": 4.5, "text": "hello lecture", "confidence": 0.9}]
+    assert body["segments"] == [
+        {
+            "id": "seg-1",
+            "start": 1.0,
+            "end": 4.5,
+            "text": "hello lecture",
+            "confidence": 0.9,
+        }
+    ]
 
 
 def test_raw_audio_is_removed_after_processing():
@@ -96,10 +106,26 @@ def test_unknown_and_deleted_jobs_return_404():
 
 def test_transcribe_file_maps_model_output_and_drops_non_speech():
     raw = [
-        SimpleNamespace(start=0.0, end=3.0, text=" Noise reduction. ", avg_logprob=-0.1, no_speech_prob=0.01),
-        SimpleNamespace(start=3.0, end=5.0, text="   ", avg_logprob=-0.2, no_speech_prob=0.0),
-        SimpleNamespace(start=5.0, end=8.0, text="music", avg_logprob=-0.5, no_speech_prob=0.95),
-        SimpleNamespace(start=8.0, end=10.0, text="STFT uses windows.", avg_logprob=-1.2, no_speech_prob=0.1),
+        SimpleNamespace(
+            start=0.0,
+            end=3.0,
+            text=" Noise reduction. ",
+            avg_logprob=-0.1,
+            no_speech_prob=0.01,
+        ),
+        SimpleNamespace(
+            start=3.0, end=5.0, text="   ", avg_logprob=-0.2, no_speech_prob=0.0
+        ),
+        SimpleNamespace(
+            start=5.0, end=8.0, text="music", avg_logprob=-0.5, no_speech_prob=0.95
+        ),
+        SimpleNamespace(
+            start=8.0,
+            end=10.0,
+            text="STFT uses windows.",
+            avg_logprob=-1.2,
+            no_speech_prob=0.1,
+        ),
     ]
     seen = {}
 
@@ -109,7 +135,13 @@ def test_transcribe_file_maps_model_output_and_drops_non_speech():
             return iter(raw), SimpleNamespace(language="en", duration=10.0)
 
     progress = []
-    out = asr.transcribe_file("x.wav", on_progress=progress.append, glossary=["STFT", "ASR"], model=StubModel(), enhance=False)
+    out = asr.transcribe_file(
+        "x.wav",
+        on_progress=progress.append,
+        glossary=["STFT", "ASR"],
+        model=StubModel(),
+        enhance=False,
+    )
     assert [s.text for s in out.segments] == ["Noise reduction.", "STFT uses windows."]
     assert out.segments[0].confidence == pytest.approx(0.905, abs=0.001)
     assert out.segments[1].confidence < out.segments[0].confidence

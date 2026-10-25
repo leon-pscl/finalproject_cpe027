@@ -4,22 +4,28 @@ Pipeline: decode -> DC/high-pass -> 512-pt STFT (75 % overlap) -> VAD -> noise P
 (minimum statistics + VAD-held estimate) -> late-reverberation PSD (Lebart/Habets model)
 -> decision-directed Wiener gain -> inverse STFT + overlap-add -> loudness normalisation.
 """
+
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Callable, Optional
 
 import numpy as np
 from scipy import signal
-from scipy.ndimage import (binary_closing, binary_dilation, binary_opening,
-                           minimum_filter1d, uniform_filter1d)
+from scipy.ndimage import (
+    binary_closing,
+    binary_dilation,
+    binary_opening,
+    minimum_filter1d,
+    uniform_filter1d,
+)
 
 SR = 16_000
 NFFT = 512
-HOP = 128                      # 75 % overlap -> COLA/NOLA satisfied for a Hann window
-CHUNK_S = 90                   # process long lectures in 90-second blocks (bounded memory, per-block noise tracking)
-CONTEXT_S = 2                  # extra context either side of a block, discarded afterwards
+HOP = 128  # 75 % overlap -> COLA/NOLA satisfied for a Hann window
+CHUNK_S = 90  # process long lectures in 90-second blocks (bounded memory, per-block noise tracking)
+CONTEXT_S = 2  # extra context either side of a block, discarded afterwards
 TARGET_RMS_DB = -20.0
 EPS = 1e-12
 
@@ -29,25 +35,40 @@ class DspReport:
     applied: bool = True
     seconds: float = 0.0
     duration: float = 0.0
-    speech_ratio: float = 0.0          # share of frames the VAD marks as speech
-    snr_est_before_db: float = 0.0     # P90 - P10 frame level: scale-free SNR proxy (no clean reference exists)
+    speech_ratio: float = 0.0  # share of frames the VAD marks as speech
+    snr_est_before_db: float = (
+        0.0  # P90 - P10 frame level: scale-free SNR proxy (no clean reference exists)
+    )
     snr_est_after_db: float = 0.0
     rt60_assumed: float = 0.5
     floor_db: float = -15.0
-    error: Optional[str] = None
+    error: str | None = None
 
     def as_dict(self) -> dict:
-        return {k: (round(v, 3) if isinstance(v, float) else v) for k, v in asdict(self).items()}
+        return {
+            k: (round(v, 3) if isinstance(v, float) else v)
+            for k, v in asdict(self).items()
+        }
 
 
 # ---------------------------------------------------------------- STFT helpers
 def stft(x: np.ndarray) -> np.ndarray:
-    _, _, Z = signal.stft(x, fs=SR, window="hann", nperseg=NFFT, noverlap=NFFT - HOP, boundary="zeros", padded=True)
+    _, _, Z = signal.stft(
+        x,
+        fs=SR,
+        window="hann",
+        nperseg=NFFT,
+        noverlap=NFFT - HOP,
+        boundary="zeros",
+        padded=True,
+    )
     return Z
 
 
 def istft(Z: np.ndarray, length: int) -> np.ndarray:
-    _, x = signal.istft(Z, fs=SR, window="hann", nperseg=NFFT, noverlap=NFFT - HOP, boundary=True)
+    _, x = signal.istft(
+        Z, fs=SR, window="hann", nperseg=NFFT, noverlap=NFFT - HOP, boundary=True
+    )
     x = x[:length]
     return np.pad(x, (0, length - len(x))).astype(np.float32)
 
@@ -73,13 +94,15 @@ def detect_speech(P: np.ndarray) -> np.ndarray:
     lo, hi = np.percentile(e, 10), np.percentile(e, 90)
     thr = lo + max(6.0, 0.3 * (hi - lo))
     raw = e > thr
-    raw = binary_closing(raw, structure=np.ones(25))   # bridge gaps < ~200 ms
-    raw = binary_opening(raw, structure=np.ones(6))    # drop bursts < ~50 ms
+    raw = binary_closing(raw, structure=np.ones(25))  # bridge gaps < ~200 ms
+    raw = binary_opening(raw, structure=np.ones(6))  # drop bursts < ~50 ms
     return raw
 
 
 # ---------------------------------------------------------------- one block
-def _enhance_block(x: np.ndarray, rt60: float, floor_db: float, reverb_weight: float, noise_bias: float) -> tuple[np.ndarray, np.ndarray]:
+def _enhance_block(
+    x: np.ndarray, rt60: float, floor_db: float, reverb_weight: float, noise_bias: float
+) -> tuple[np.ndarray, np.ndarray]:
     Z = stft(x)
     P = (np.abs(Z) ** 2).astype(np.float32)
     F, T = P.shape
@@ -98,22 +121,24 @@ def _enhance_block(x: np.ndarray, rt60: float, floor_db: float, reverb_weight: f
 
     # Late reverberation PSD: energy ~50 ms earlier, decayed by the room's RT60.
     delay_s = 0.05
-    D = max(1, int(round(delay_s * SR / HOP)))
+    D = max(1, round(delay_s * SR / HOP))
     delta = 3 * np.log(10) / rt60
     gamma = float(np.exp(-2 * delta * delay_s))
     P9 = uniform_filter1d(P, size=9, axis=1)
     R = np.zeros_like(P)
     R[:, D:] = reverb_weight * gamma * P9[:, :-D]
 
-    U = N + R + EPS                      # total undesired power
-    post = P / U                         # a-posteriori SNR
+    U = N + R + EPS  # total undesired power
+    post = P / U  # a-posteriori SNR
     g_min = 10 ** (floor_db / 20)
     alpha = 0.98
     G = np.empty_like(P)
     g_prev = np.ones(F, dtype=np.float32)
     post_prev = post[:, 0]
-    for t in range(T):                   # decision-directed a-priori SNR (Ephraim-Malah)
-        xi = alpha * (g_prev ** 2) * post_prev + (1 - alpha) * np.maximum(post[:, t] - 1.0, 0.0)
+    for t in range(T):  # decision-directed a-priori SNR (Ephraim-Malah)
+        xi = alpha * (g_prev**2) * post_prev + (1 - alpha) * np.maximum(
+            post[:, t] - 1.0, 0.0
+        )
         g = np.maximum(xi / (1.0 + xi), g_min)
         G[:, t] = g
         g_prev, post_prev = g, post[:, t]
@@ -128,7 +153,7 @@ def _frame_db(x: np.ndarray, frame: int = 320) -> np.ndarray:
     if n == 0:
         return np.array([-120.0])
     f = x[: n * frame].reshape(n, frame)
-    return 10 * np.log10((f ** 2).mean(axis=1) + EPS)
+    return 10 * np.log10((f**2).mean(axis=1) + EPS)
 
 
 def snr_proxy(x: np.ndarray) -> float:
@@ -142,8 +167,14 @@ def normalize_loudness(x: np.ndarray, target_db: float = TARGET_RMS_DB) -> np.nd
     frame = 320
     n = len(db)
     frames = x[: n * frame].reshape(n, frame)
-    rms = np.sqrt((frames[active] ** 2).mean()) if active.any() else np.sqrt((x ** 2).mean() + EPS)
-    gain = min(10 ** (target_db / 20) / (rms + EPS), 100.0)  # up to +40 dB for distant-mic recordings
+    rms = (
+        np.sqrt((frames[active] ** 2).mean())
+        if active.any()
+        else np.sqrt((x**2).mean() + EPS)
+    )
+    gain = min(
+        10 ** (target_db / 20) / (rms + EPS), 100.0
+    )  # up to +40 dB for distant-mic recordings
     y = x * gain
     peak = float(np.abs(y).max())
     if peak > 0.99:
@@ -158,7 +189,7 @@ def enhance(
     floor_db: float = -15.0,
     reverb_weight: float = 1.0,
     noise_bias: float = 1.5,
-    on_progress: Optional[Callable[[float], None]] = None,
+    on_progress: Callable[[float], None] | None = None,
 ) -> tuple[np.ndarray, DspReport]:
     t0 = time.time()
     x = np.asarray(x, dtype=np.float32)

@@ -9,7 +9,6 @@ import wave
 from pathlib import Path
 
 import pytest
-
 from app.media import (
     DSPConfig,
     MediaProcessingError,
@@ -34,7 +33,9 @@ def _write_wav(
     values: list[int] = []
     for index in range(frame_count):
         for _ in range(channels):
-            values.append(int(amplitude * math.sin(2 * math.pi * frequency * index / sample_rate)))
+            values.append(
+                int(amplitude * math.sin(2 * math.pi * frequency * index / sample_rate))
+            )
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(channels)
         wav.setsampwidth(2)
@@ -63,7 +64,9 @@ def test_stereo_is_standardized_to_mono_16k(tmp_path: Path) -> None:
     source = tmp_path / "stereo.wav"
     _write_wav(source, channels=2, sample_rate=22050, amplitude=300)
 
-    result = process_local_audio(source, DSPConfig(bypass=True), output_root=tmp_path / "out")
+    result = process_local_audio(
+        source, DSPConfig(bypass=True), output_root=tmp_path / "out"
+    )
 
     assert result.diagnostics["arm_a"]["channels"] == 1
     assert result.diagnostics["arm_a"]["sample_rate"] == 16000
@@ -75,7 +78,9 @@ def test_bypass_copies_the_normalized_baseline(tmp_path: Path) -> None:
     source = tmp_path / "audio.wav"
     _write_wav(source, channels=1, amplitude=500, frequency=100.0)
 
-    result = process_local_audio(source, DSPConfig(bypass=True), output_root=tmp_path / "out")
+    result = process_local_audio(
+        source, DSPConfig(bypass=True), output_root=tmp_path / "out"
+    )
 
     assert result.bypassed is True
     assert result.stage_runtimes["high_pass"] == 0.0
@@ -174,4 +179,6 @@ def test_no_audioRaises_when_probe_finds_none(tmp_path: Path) -> None:
     source = tmp_path / "empty.txt"
     source.write_text("not audio", encoding="utf-8")
     with pytest.raises(MediaProcessingError, match="Invalid data found"):
-        process_local_audio(source, DSPConfig(bypass=True), output_root=tmp_path / "out")
+        process_local_audio(
+            source, DSPConfig(bypass=True), output_root=tmp_path / "out"
+        )

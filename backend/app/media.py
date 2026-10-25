@@ -106,7 +106,9 @@ class ProcessedAudio:
 class LocalAudioProcessor:
     """Safe local implementation of the AudioProcessor contract."""
 
-    def process(self, audio_asset: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    def process(
+        self, audio_asset: dict[str, Any], config: dict[str, Any]
+    ) -> dict[str, Any]:
         source = Path(
             str(
                 audio_asset.get("input_path")
@@ -123,7 +125,9 @@ class LocalAudioProcessor:
                 config.get("high_pass_cutoff_hz", DSPConfig().high_pass_cutoff_hz)
             ),
             spectral_gating_enabled=bool(
-                config.get("spectral_gating_enabled", DSPConfig().spectral_gating_enabled)
+                config.get(
+                    "spectral_gating_enabled", DSPConfig().spectral_gating_enabled
+                )
             ),
             spectral_gating_strength_db=float(
                 config.get(
@@ -139,7 +143,9 @@ class LocalAudioProcessor:
             target_sample_rate=int(
                 config.get("target_sample_rate", DSPConfig().target_sample_rate)
             ),
-            target_channels=int(config.get("target_channels", DSPConfig().target_channels)),
+            target_channels=int(
+                config.get("target_channels", DSPConfig().target_channels)
+            ),
         )
         output_root = audio_asset.get("output_root")
         output_root_path = Path(str(output_root)) if output_root is not None else None
@@ -179,11 +185,15 @@ def ffmpeg_executable(name: str = "ffmpeg") -> str:
     return executable
 
 
-def run_subprocess(command: list[str], timeout_seconds: int) -> subprocess.CompletedProcess[str]:
+def run_subprocess(
+    command: list[str], timeout_seconds: int
+) -> subprocess.CompletedProcess[str]:
     """Run FFmpeg/FFprobe safely using an argument list and a timeout."""
 
     if not command or any(not isinstance(part, str) or not part for part in command):
-        raise MediaProcessingError("subprocess command must be a non-empty list of strings")
+        raise MediaProcessingError(
+            "subprocess command must be a non-empty list of strings"
+        )
     if timeout_seconds <= 0:
         raise MediaProcessingError("subprocess timeout must be positive")
     try:
@@ -199,10 +209,14 @@ def run_subprocess(command: list[str], timeout_seconds: int) -> subprocess.Compl
     except FileNotFoundError as exc:
         raise FfmpegNotFoundError(f"executable not found: {command[0]}") from exc
     except subprocess.TimeoutExpired as exc:
-        raise MediaProcessingError(f"command timed out after {timeout_seconds} seconds") from exc
+        raise MediaProcessingError(
+            f"command timed out after {timeout_seconds} seconds"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         message = (exc.stderr or exc.stdout or "").strip()
-        raise MediaProcessingError(f"ffmpeg/ffprobe failed: {message or 'unknown error'}") from exc
+        raise MediaProcessingError(
+            f"ffmpeg/ffprobe failed: {message or 'unknown error'}"
+        ) from exc
 
 
 def probe_media(source: Path, timeout_seconds: int = 30) -> MediaInfo:
@@ -295,7 +309,14 @@ def _decoded_wav(path: Path) -> tuple[int, int, list[float]]:
                     raw_file.read(1)
             if fmt is None or pcm_data is None:
                 raise ValueError("missing WAVE format or PCM data")
-            audio_format, channels, sample_rate, _byte_rate, _block_align, bits_per_sample = fmt
+            (
+                audio_format,
+                channels,
+                sample_rate,
+                _byte_rate,
+                _block_align,
+                bits_per_sample,
+            ) = fmt
             frame_width = 0 if channels <= 0 else (channels * bits_per_sample + 7) // 8
             if channels <= 0 or sample_rate <= 0 or frame_width <= 0:
                 raise ValueError("invalid WAVE format")
@@ -326,14 +347,21 @@ def _decoded_wav(path: Path) -> tuple[int, int, list[float]]:
                                 value = pcm_data[channel_offset]
                                 samples.append((value - 128.0) / 128.0)
                             elif bits_per_sample == 16:
-                                value = struct.unpack_from("<h", pcm_data, channel_offset)[0]
+                                value = struct.unpack_from(
+                                    "<h", pcm_data, channel_offset
+                                )[0]
                                 samples.append(value / 32767.0)
                             elif bits_per_sample == 24:
-                                raw_bytes = pcm_data[channel_offset:channel_offset + 3] + b"\x00"
+                                raw_bytes = (
+                                    pcm_data[channel_offset : channel_offset + 3]
+                                    + b"\x00"
+                                )
                                 value = struct.unpack("<i", raw_bytes)[0] >> 8
                                 samples.append(value / 8388607.0)
                             else:
-                                value = struct.unpack_from("<i", pcm_data, channel_offset)[0]
+                                value = struct.unpack_from(
+                                    "<i", pcm_data, channel_offset
+                                )[0]
                                 samples.append(value / 2147483648.0)
                 else:
                     raise ValueError("unsupported PCM bit depth")
@@ -342,7 +370,9 @@ def _decoded_wav(path: Path) -> tuple[int, int, list[float]]:
                     raise ValueError("truncated float PCM data")
                 samples = [value for (value,) in struct.iter_unpack("<f", pcm_data)]
             else:
-                raise ValueError("only PCM and 32-bit IEEE-float WAVE data are supported")
+                raise ValueError(
+                    "only PCM and 32-bit IEEE-float WAVE data are supported"
+                )
 
             if not samples:
                 raise MediaProcessingError("audio output is empty")
@@ -442,7 +472,9 @@ def _safe_storage_path(storage_root: Path, storage_path: str) -> Path:
     return resolved
 
 
-def _voice_activity_map(stats: AudioStats, samples: list[float], config: DSPConfig) -> list[dict[str, Any]]:
+def _voice_activity_map(
+    stats: AudioStats, samples: list[float], config: DSPConfig
+) -> list[dict[str, Any]]:
     if not samples or not config.vad_enabled:
         return []
 
@@ -452,8 +484,10 @@ def _voice_activity_map(stats: AudioStats, samples: list[float], config: DSPConf
 
     for frame_index in range(len(samples) // samples_per_frame):
         frame_start = frame_index * samples_per_frame
-        frame_samples = samples[frame_start:frame_start + samples_per_frame]
-        rms = math.sqrt(sum(sample * sample for sample in frame_samples) / len(frame_samples))
+        frame_samples = samples[frame_start : frame_start + samples_per_frame]
+        rms = math.sqrt(
+            sum(sample * sample for sample in frame_samples) / len(frame_samples)
+        )
         if rms >= active_threshold:
             active_frames.append((frame_index, rms))
 
@@ -476,8 +510,12 @@ def _voice_activity_map(stats: AudioStats, samples: list[float], config: DSPConf
             mapped.append(
                 {
                     "start_s": round(start_sample / stats.sample_rate, 3),
-                    "end_s": round(min(end_sample / stats.sample_rate, stats.duration_seconds), 3),
-                    "duration_s": round((end_sample - start_sample) / stats.sample_rate, 3),
+                    "end_s": round(
+                        min(end_sample / stats.sample_rate, stats.duration_seconds), 3
+                    ),
+                    "duration_s": round(
+                        (end_sample - start_sample) / stats.sample_rate, 3
+                    ),
                     "sample_start": start_sample,
                     "sample_end": min(end_sample, len(samples)),
                     "offset_s": round(start_sample / stats.sample_rate, 3),
@@ -493,7 +531,9 @@ def _voice_activity_map(stats: AudioStats, samples: list[float], config: DSPConf
         mapped.append(
             {
                 "start_s": round(start_sample / stats.sample_rate, 3),
-                "end_s": round(min(end_sample / stats.sample_rate, stats.duration_seconds), 3),
+                "end_s": round(
+                    min(end_sample / stats.sample_rate, stats.duration_seconds), 3
+                ),
                 "duration_s": round((end_sample - start_sample) / stats.sample_rate, 3),
                 "sample_start": start_sample,
                 "sample_end": min(end_sample, len(samples)),
@@ -575,9 +615,14 @@ def process_local_audio(
     try:
         probe_started = time.monotonic()
         probe = probe_media(source)
-        stage_timings: dict[str, float] = {"probe": round(time.monotonic() - probe_started, 4)}
+        stage_timings: dict[str, float] = {
+            "probe": round(time.monotonic() - probe_started, 4)
+        }
 
-        if probe.duration_seconds is not None and probe.duration_seconds > max_duration_minutes * 60:
+        if (
+            probe.duration_seconds is not None
+            and probe.duration_seconds > max_duration_minutes * 60
+        ):
             raise MediaProcessingError("media duration exceeds the configured maximum")
 
         extract_started = time.monotonic()
@@ -608,7 +653,9 @@ def process_local_audio(
                     )
                 )
             if config.normalize:
-                active_filters.append(("normalization", 20.0, "loudnorm=I=-20:TP=-2:LRA=7"))
+                active_filters.append(
+                    ("normalization", 20.0, "loudnorm=I=-20:TP=-2:LRA=7")
+                )
 
         stage_runtimes = {
             "high_pass": 0.0,
@@ -651,7 +698,9 @@ def process_local_audio(
                 elapsed = round(time.monotonic() - started, 4)
                 current = output
                 stage_runtimes[stage_name] = elapsed
-                stage_timings[stage_name] = round(stage_timings.get(stage_name, 0.0) + elapsed, 4)
+                stage_timings[stage_name] = round(
+                    stage_timings.get(stage_name, 0.0) + elapsed, 4
+                )
             if current != dsp_path:
                 shutil.copyfile(current, dsp_path)
 
@@ -733,7 +782,9 @@ class LocalMediaService:
         elif storage_root is not None and storage_path is not None:
             source = _safe_storage_path(Path(storage_root), storage_path)
         else:
-            raise MediaProcessingError("a source path or storage root and storage path is required")
+            raise MediaProcessingError(
+                "a source path or storage root and storage path is required"
+            )
 
         if not source.is_file():
             raise MediaProcessingError(f"input media does not exist: {source}")

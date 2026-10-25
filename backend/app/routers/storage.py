@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import io
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
@@ -20,7 +18,7 @@ async def signed_upload(
     request: Request,
     expires: int,
     signature: str,
-    storage: StorageAdapter = Depends(get_storage),
+    storage: StorageAdapter = Depends(get_storage),  # noqa: B008
 ):
     if not storage.verify_signature(storage_path, expires, signature):
         return JSONResponse(
@@ -53,7 +51,7 @@ async def signed_upload(
 )
 def signed_download_url(
     storage_path: str,
-    storage: StorageAdapter = Depends(get_storage),
+    storage: StorageAdapter = Depends(get_storage),  # noqa: B008
     expires_in_minutes: int = Query(default=15, ge=1, le=1440),
 ):
     try:
@@ -82,7 +80,7 @@ def signed_read(
     storage_path: str,
     expires: int,
     signature: str,
-    storage: StorageAdapter = Depends(get_storage),
+    storage: StorageAdapter = Depends(get_storage),  # noqa: B008
 ):
     if not storage.verify_signature(storage_path, expires, signature):
         return JSONResponse(
