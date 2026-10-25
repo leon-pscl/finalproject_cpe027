@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     custom_asr_base_url: str | None = None
 
+    repository_backend: Literal["auto", "firestore", "memory"] = "auto"
+    local_storage_root: str = "local_storage"
+    storage_signed_url_secret: str = "local-dev-storage-secret"
+
     # DSP
     dsp_version: str = "0"
     dsp_high_pass_cutoff_hz: float = Field(default=80.0, ge=1.0, le=500.0)
