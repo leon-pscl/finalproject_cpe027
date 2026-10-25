@@ -22,8 +22,9 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
       WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-auto}
       MODEL_CACHE_DIR: /models
-      # DSP enhancement before ASR (see README). Reverb weight 0 = denoise only; test higher values with app.evaluate.
-      ENHANCE_AUDIO: ${ENHANCE_AUDIO:-true}
+      # dsp.py enhancement for POST /api/transcriptions; the upload pipeline runs
+      # media.py DSP once instead (see README).
+      ENHANCE_AUDIO: ${ENHANCE_AUDIO:-false}
       DSP_REVERB_WEIGHT: ${DSP_REVERB_WEIGHT:-0.0}
     volumes:
       - model-cache:/models

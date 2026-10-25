@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     workers: int = Field(
         default=1, gt=0, validation_alias=AliasChoices("TRANSCRIBE_WORKERS", "workers")
     )
+    # Runs upload -> media/DSP -> ASR inside the API process (see app.worker).
+    worker_enabled: bool = True
 
     # Firebase
     firebase_project_id: str | None = None
@@ -74,9 +76,10 @@ class Settings(BaseSettings):
     dsp_version: str = "0"
     dsp_high_pass_cutoff_hz: float = Field(default=80.0, ge=1.0, le=500.0)
     dsp_spectral_gating_enabled: bool = False
-    # dsp.py enhancement (used by /api/transcriptions and app.evaluate).
+    # dsp.py enhancement for POST /api/transcriptions. Off by default so the upload
+    # pipeline runs media.py DSP exactly once; app.evaluate passes enhance= itself.
     enhance_default: bool = Field(
-        default=True, validation_alias=AliasChoices("ENHANCE_AUDIO", "enhance_default")
+        default=False, validation_alias=AliasChoices("ENHANCE_AUDIO", "enhance_default")
     )
     dsp_rt60: float = 0.5
     dsp_floor_db: float = -15.0
