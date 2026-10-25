@@ -32,6 +32,7 @@ export interface AudioFileInfo {
 export interface TranscriptSegment {
   id: string;
   start: number;
+  end?: number;
   speaker: string;
   text: string;
   confidence: number;
