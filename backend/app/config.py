@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 """Application configuration.
 
 Values are read from environment variables (and a local `.env` file in
@@ -78,6 +79,8 @@ def clear_settings_cache() -> None:
     """Test helper to reload settings from environment."""
     get_settings.cache_clear()
 =======
+=======
+>>>>>>> iteration_lim
 """Runtime settings, read from environment variables."""
 from __future__ import annotations
 
@@ -115,4 +118,7 @@ class Settings:
 
 def get_settings() -> Settings:
     return Settings()
+<<<<<<< HEAD
+>>>>>>> iteration_lim
+=======
 >>>>>>> iteration_lim
