@@ -7,6 +7,14 @@ export type Tab = 'chat' | 'transcriptions';
 export type ChatMessage = { id: number; from: 'you' | 'assistant'; text: string };
 export type PlayerState = { currentTime: number; duration: number; playing: boolean; speed: number };
 
+export type AudioAsset = {
+  kind: 'original' | 'processed';
+  url: string | null;
+  storagePath: string | null;
+  available: boolean;
+  pending: boolean;
+};
+
 /** One note session = one chat in the sidebar. Persisted per user. */
 export type ChatSession = {
   id: string;
@@ -17,6 +25,7 @@ export type ChatSession = {
   fileName: string | null;
   /** Fallback duration in seconds (used when the audio element has no metadata). */
   duration: number;
+  storagePath: string | null;
   transcript: TranscriptSegment[];
   messages: ChatMessage[];
 };

@@ -701,6 +701,61 @@ export const initiateLectureUpload = initiateUpload;
 export const completeLectureUpload = completeUpload;
 export const fetchLecture = getLecture;
 
+export interface SignedDownloadUrlResponse {
+  storage_path: string;
+  signed_download_url: string;
+  signed_url?: string | null;
+  download_url?: string | null;
+  expires_at: string;
+}
+
+export async function createSignedDownloadUrl(
+  storagePath: string,
+  options: ApiRequestOptions = {},
+): Promise<SignedDownloadUrlResponse> {
+  return requestJson<SignedDownloadUrlResponse>(
+    `/storage/download-url/${storagePath}`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
+export async function getSignedDownloadUrl(
+  storagePath: string,
+  options: ApiRequestOptions = {},
+): Promise<SignedDownloadUrlResponse | null> {
+  try {
+    return await createSignedDownloadUrl(storagePath, options);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSignedMedia(
+  storagePathOrUrl: string,
+  options: ApiRequestOptions = {},
+): Promise<Blob> {
+  const url = /^[a-z]+:/i.test(storagePathOrUrl)
+    ? storagePathOrUrl
+    : buildApiUrl(`/storage/download/${storagePathOrUrl}`);
+  const token = await getAccessToken();
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    throw new ApiError('Unable to read signed storage media.', {
+      code: 'INVALID_REQUEST',
+      status: response.status,
+      retryable: false,
+    });
+  }
+  return response.blob();
+}
+
 function guessContentType(fileName: string): string {
   const lower = fileName.toLowerCase();
   if (lower.endsWith('.wav')) {
