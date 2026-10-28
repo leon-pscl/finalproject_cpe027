@@ -19,12 +19,17 @@ from app.adapters.base import (
     Retriever,
     Transcriber,
 )
+# Import concrete implementations for real mode delegation
+from app.chunker import Chunker as ChunkerImpl
+from app.embedder import Embedder as EmbedderImpl
+from app.asr import Transcript
+
+
 from app.config import get_settings
 
-
-# Local error type kept here so the module imports without depending on contracts.
 class AdapterNotConfigured(RuntimeError):
     """Raised when a real adapter is selected but its provider is not configured."""
+    pass
 
 
 def _require_real_mode(name: str) -> None:
@@ -35,6 +40,8 @@ def _require_real_mode(name: str) -> None:
         f"{name} is selected in real mode but no provider implementation is "
         "configured in this build; implement the provider adapter first."
     )
+
+
 
 
 class RealMediaService(MediaService):
@@ -56,14 +63,35 @@ class RealTranscriber(Transcriber):
 
 class RealChunker(Chunker):
     def chunk(self, timed_segments: Sequence[Any], config: dict) -> list[Any]:
-        _require_real_mode("RealChunker")
-        return []
+        """Delegate to concrete Chunker implementation.
+
+        `timed_segments` are the ASR Segment objects. We build a Transcript and
+        invoke the shared Chunker, which respects config settings for chunk size
+        and overlap.
+        """
+        # Compute total duration from segment end times.
+        duration = max((seg.end for seg in timed_segments), default=0.0)
+        # Build a Transcript compatible with the Chunker implementation.
+        transcript = Transcript(language="en", duration=duration, segments=list(timed_segments))
+        chunker = ChunkerImpl()
+        return chunker.chunk(
+            transcript,
+            config.get("lecture_id", ""),
+            config.get("version", ""),
+        )
+
 
 
 class RealEmbedder(Embedder):
     def embed(self, texts: Sequence[str], config: dict) -> list[list[float]]:
-        _require_real_mode("RealEmbedder")
-        return []
+        # `texts` corresponds to the chunk texts. We'll construct dummy Chunk
+        # objects just to satisfy the shared Embedder implementation, which expects
+        # a list of `Chunk` instances with a `text` attribute.
+        from ..contracts import Chunk as ChunkModel
+        dummy_chunks = [ChunkModel(chunk_id="tmp", lecture_id=config.get("lecture_id", ""), version=config.get("version", ""), segment_ids=[], start_s=0.0, end_s=0.0, text=t, embedding_model="", embedding_revision="") for t in texts]
+        embedder = EmbedderImpl()
+        return embedder.embed(dummy_chunks)
+
 
 
 class RealRetriever(Retriever):
