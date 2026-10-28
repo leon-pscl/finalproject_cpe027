@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Runtime posture
     env: Env = "dev"
     processing_mode: ProcessingMode = "mock"
-    asr_provider: str = "none"
+    asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
     embed_provider: str = "none"
     llm_provider: str = "none"
     dsp_enabled: bool = False
@@ -57,6 +57,7 @@ class Settings(BaseSettings):
 
     # Provider configuration (keys stay server-side; never committed)
     openai_api_key: str | None = None
+    groq_api_key: str | None = None
     custom_asr_base_url: str | None = None
 
     repository_backend: Literal["auto", "firestore", "memory"] = "auto"

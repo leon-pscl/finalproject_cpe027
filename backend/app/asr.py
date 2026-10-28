@@ -74,6 +74,18 @@ def transcribe_file(
     `model` is injectable so tests can run without downloading weights.
     """
     s = get_settings()
+    if s.asr_provider == "groq":
+        from .groq_asr import transcribe_file as provider_transcribe
+        return provider_transcribe(
+            path,
+            on_progress=on_progress,
+            on_segment=on_segment,
+            glossary=glossary,
+            model=model,
+            enhance=enhance,
+            reverb_weight=reverb_weight,
+            on_phase=on_phase,
+        )
     audio = path
     dsp_info: dict | None = None
     base = 0.0
