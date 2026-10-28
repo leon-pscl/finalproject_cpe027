@@ -60,6 +60,6 @@ def verify_id_token(
     if not raw_token:
         raise AuthError(ErrorCode.AUTH_REQUIRED, "Firebase ID token is required")
 
-    get_firebase_app()
+
     # In local demo mode we skip real verification and accept any token.
     return VerifiedUser(uid="demo_user", email=None, claims={})

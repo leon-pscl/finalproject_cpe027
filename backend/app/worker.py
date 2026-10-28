@@ -10,6 +10,7 @@ written back so the result stays retrievable.
 from __future__ import annotations
 
 import json
+from .vector_store import FAISSVectorStore
 import logging
 import tempfile
 import threading
@@ -136,7 +137,7 @@ class PipelineWorker:
             timings["chunking"] = round(time.monotonic() - chunk_start, 4)
             # Embedding
             embed_start = time.monotonic()
-            vectors = embedder.embed(chunks, config)
+            vectors = embedder.embed(chunks)
             timings["embedding"] = round(time.monotonic() - embed_start, 4)
             # Combine chunks with embeddings for storage.
             enriched_chunks = []
@@ -145,11 +146,17 @@ class PipelineWorker:
                 chunk_dict["embedding"] = vec
                 enriched_chunks.append(chunk_dict)
             # Save enriched chunks JSON.
+            # Save enriched chunks JSON for backward‑compatibility.
             self.storage.save_object(
                 f"users/{owner_id}/{lecture_id}/chunks.json",
                 json.dumps(enriched_chunks, indent=2).encode("utf-8"),
                 "application/json",
-                )
+            )
+            # Persist vectors and metadata to FAISS on disk.
+            faiss_store = FAISSVectorStore(self.settings.local_storage_root, lecture_id)
+            faiss_store.add(enriched_chunks, vectors)
+
+
             self.repository.update_job_state(
                 owner_id,
                 lecture_id,

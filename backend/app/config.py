@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     env: Env = "dev"
     processing_mode: ProcessingMode = "mock"
     asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
-    embed_provider: Literal["none", "mock", "openai"] = "none"
-    llm_provider: str = "none"
+    embed_provider: Literal["none", "mock", "openai", "hf"] = "hf"
+    llm_provider: str = "openai"
     dsp_enabled: bool = False
 
     chunk_seconds: int = Field(default=30, gt=1, description="Chunk length in seconds")
