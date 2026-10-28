@@ -40,12 +40,12 @@ class Settings(BaseSettings):
 
     max_duration_minutes: int = Field(default=60, gt=0, le=240)
     per_user_daily_job_limit: int = Field(default=5, gt=0)
+    max_upload_mb: int = Field(default=512, gt=0, description="Maximum upload size in megabytes")
     per_user_lecture_limit: int = Field(default=25, gt=0)
-    job_ttl_seconds: int = Field(default=24 * 3600, gt=0)
     workers: int = Field(
         default=1, gt=0, validation_alias=AliasChoices("TRANSCRIBE_WORKERS", "workers")
     )
-    # Runs upload -> media/DSP -> ASR inside the API process (see app.worker).
+    job_ttl_seconds: int = Field(default=24 * 3600, gt=0)
     worker_enabled: bool = True
 
     # Firebase

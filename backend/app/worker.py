@@ -122,33 +122,33 @@ class PipelineWorker:
                 "segments": len(transcript.segments),
                 "completed_at": datetime.now(UTC).isoformat(timespec="seconds"),
             }
-                            self._save_artifact(owner_id, lecture_id, transcript)
+            self._save_artifact(owner_id, lecture_id, transcript)
 
-                # Indexing stage: chunk and embed the transcript.
-                self._stage(owner_id, lecture_id, job_id, JobStage.INDEXING)
-                adapters = adapter_bundle()
-                chunker = adapters["chunker"]
-                embedder = adapters["embedder"]
-                # Chunking
-                chunk_start = time.monotonic()
-                config = {"lecture_id": lecture_id, "version": "v1"}
-                chunks = chunker.chunk(transcript.segments, config)
-                timings["chunking"] = round(time.monotonic() - chunk_start, 4)
-                # Embedding
-                embed_start = time.monotonic()
-                vectors = embedder.embed([c.text for c in chunks], config)
-                timings["embedding"] = round(time.monotonic() - embed_start, 4)
-                # Combine chunks with embeddings for storage.
-                enriched_chunks = []
-                for chunk, vec in zip(chunks, vectors):
-                    chunk_dict = chunk.dict()
-                    chunk_dict["embedding"] = vec
-                    enriched_chunks.append(chunk_dict)
-                # Save enriched chunks JSON.
-                self.storage.save_object(
-                    f"users/{owner_id}/{lecture_id}/chunks.json",
-                    json.dumps(enriched_chunks, indent=2).encode("utf-8"),
-                    "application/json",
+            # Indexing stage: chunk and embed the transcript.
+            self._stage(owner_id, lecture_id, job_id, JobStage.INDEXING)
+            adapters = adapter_bundle()
+            chunker = adapters["chunker"]
+            embedder = adapters["embedder"]
+            # Chunking
+            chunk_start = time.monotonic()
+            config = {"lecture_id": lecture_id, "version": "v1"}
+            chunks = chunker.chunk(transcript, config)
+            timings["chunking"] = round(time.monotonic() - chunk_start, 4)
+            # Embedding
+            embed_start = time.monotonic()
+            vectors = embedder.embed(chunks, config)
+            timings["embedding"] = round(time.monotonic() - embed_start, 4)
+            # Combine chunks with embeddings for storage.
+            enriched_chunks = []
+            for chunk, vec in zip(chunks, vectors):
+                chunk_dict = chunk.dict()
+                chunk_dict["embedding"] = vec
+                enriched_chunks.append(chunk_dict)
+            # Save enriched chunks JSON.
+            self.storage.save_object(
+                f"users/{owner_id}/{lecture_id}/chunks.json",
+                json.dumps(enriched_chunks, indent=2).encode("utf-8"),
+                "application/json",
                 )
             self.repository.update_job_state(
                 owner_id,

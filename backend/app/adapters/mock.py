@@ -63,19 +63,30 @@ class MockTranscriber:
 
 class MockChunker:
     def chunk(
-        self, timed_segments: Sequence[TranscriptSegment], config: dict[str, Any]
+        self, timed_segments: Sequence[TranscriptSegment] | Any, config: dict[str, Any]
     ) -> list[Chunk]:
+        # Support both raw segment list and a Transcript object with .segments
+        if hasattr(timed_segments, "segments"):
+            segments = timed_segments.segments
+        else:
+            segments = timed_segments
         chunks: list[Chunk] = []
-        for segment in timed_segments:
+        for segment in segments:
+            seg_id = getattr(segment, "segment_id", getattr(segment, "id", ""))
+            lecture_id = getattr(segment, "lecture_id", "")
+            version = getattr(segment, "version", "")
+            start = getattr(segment, "start_s", getattr(segment, "start", 0.0))
+            end = getattr(segment, "end_s", getattr(segment, "end", 0.0))
+            text = getattr(segment, "text", "")
             chunks.append(
                 Chunk(
-                    chunk_id=f"mock-chunk-{segment.segment_id}",
-                    lecture_id=segment.lecture_id,
-                    version=segment.version,
-                    segment_ids=[segment.segment_id],
-                    start_s=segment.start_s,
-                    end_s=segment.end_s,
-                    text=segment.text,
+                    chunk_id=f"mock-chunk-{seg_id}",
+                    lecture_id=lecture_id,
+                    version=version,
+                    segment_ids=[seg_id] if seg_id else [],
+                    start_s=start,
+                    end_s=end,
+                    text=text,
                     embedding_model="mock",
                     embedding_revision="0",
                 )
