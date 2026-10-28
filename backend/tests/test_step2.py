@@ -35,9 +35,15 @@ def authorized_client(step2_env: None):
     def _user():
         return VerifiedUser(uid=current["uid"])
 
+    from app.dependencies import get_storage
     app.dependency_overrides[get_current_user] = _user
     client = TestClient(app)
     yield client, current
+    # Clean up any storage overrides that may linger from other tests.
+    app.dependency_overrides.pop(get_storage, None)
+    # Clean up any storage overrides that may linger from other tests.
+    app.dependency_overrides.pop(get_storage, None)
+
 
 
 def _initiate_upload(
