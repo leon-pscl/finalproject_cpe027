@@ -31,12 +31,13 @@ class Settings(BaseSettings):
     env: Env = "dev"
     processing_mode: ProcessingMode = "mock"
     asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
-    embed_provider: str = "none"
+    embed_provider: Literal["none", "mock", "openai"] = "none"
     llm_provider: str = "none"
     dsp_enabled: bool = False
 
-    # Upload and processing limits (verified per deployment; defaults are safe)
-    max_upload_mb: int = Field(default=512, gt=0, le=4096)
+    chunk_seconds: int = Field(default=30, gt=1, description="Chunk length in seconds")
+    chunk_overlap_seconds: int = Field(default=5, ge=0, description="Overlap between chunks")
+
     max_duration_minutes: int = Field(default=60, gt=0, le=240)
     per_user_daily_job_limit: int = Field(default=5, gt=0)
     per_user_lecture_limit: int = Field(default=25, gt=0)
