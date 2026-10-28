@@ -1,5 +1,15 @@
 **⚠️ Risk:** The code now uses stubbed authentication and in‑memory data stores. No real security or persistence is provided; reloads will lose data and any auth is bypassed.
 
+**🆕 New production‑grade RAG pipeline**
+
+- Self‑hosted **MiniLM‑L6‑v2** embeddings (384‑dim) via `sentence‑transformers`.
+- Persistent **FAISS** vector store on disk (chunks JSON kept for backward compatibility).
+- Answer generation via **OpenAI `gpt‑4o‑mini`** with grounding prompt; falls back to retrieved passages when the API key is missing.
+- `PROCESSING_MODE` set to `real` enables the full pipeline (ASR → chunk → embed → store → retrieve/answer).
+- Environment variable `OPENAI_API_KEY` required for LLM calls.
+
+The rest of the README remains unchanged.
+
 
 
 LectureFlow is a lecture transcription prototype organized as separate frontend and backend applications:

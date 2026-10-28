@@ -58,3 +58,7 @@ Maps `docs/instructions.md` (Rev 2.3) to the v3 Build Steps. Branch is `iteratio
 
 ## Safe local mode (first passes)
 - No cloud credentials assumed. Interfaces + mocks + emulator tests + local FFmpeg only. Hosted runs only in a separately authorized workflow.
+
+---
+
+**Checkpoint:** See `docs/checkpoint.md` for a summary of the RAG pipeline implementation and next steps.
