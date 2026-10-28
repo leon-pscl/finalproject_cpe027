@@ -1,8 +1,10 @@
-# LectureFlow
+**⚠️ Risk:** The code now uses stubbed authentication and in‑memory data stores. No real security or persistence is provided; reloads will lose data and any auth is bypassed.
+
+
 
 LectureFlow is a lecture transcription prototype organized as separate frontend and backend applications:
 
-- `frontend/` — React 19, Vite 6, TypeScript, and Tailwind CSS 3.4. Uploads are transcribed by the backend (real ASR). Notes, search and Q&A are still being built step by step.
+- `ngrok` can expose the local dev server publicly for demos. Install with `npm i -g ngrok` and run `ngrok http 8000` (or the port your backend runs on). The generated URL can be shared for the final demo.
 - `backend/` — a Python/FastAPI API scaffold, independently runnable and containerized.
 
 ## Docker

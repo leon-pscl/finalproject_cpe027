@@ -74,7 +74,10 @@ def transcribe_file(
     `model` is injectable so tests can run without downloading weights.
     """
     s = get_settings()
-    if s.asr_provider == "groq":
+    if model is not None:
+        # Use injected model later; continue with DSP handling below
+        pass
+    if s.asr_provider == "groq" and model is None:
         from .groq_asr import transcribe_file as provider_transcribe
         return provider_transcribe(
             path,

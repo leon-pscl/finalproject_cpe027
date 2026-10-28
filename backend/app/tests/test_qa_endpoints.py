@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -13,26 +14,33 @@ def _override_current_user() -> VerifiedUser:
     return VerifiedUser(uid="test_user", email="test@example.com")
 
 class _DummyStorage(StorageAdapter):
-    """Minimal storage that returns preset chunks.json content."""
+    """Minimal storage that returns preset chunks.json content and supports uploads."""
 
     def __init__(self, chunks: list[dict]):
         self._chunks = chunks
+        # Use a real local storage adapter for signed URL generation.
+        from app.storage import LocalStorageAdapter
+        from app.config import get_settings
+        self._real = LocalStorageAdapter(get_settings())
 
     # Methods not used in QA tests can raise NotImplementedError.
-    def create_signed_upload_url(self, *_, **__):  # pragma: no cover
-        raise NotImplementedError
+    def create_signed_upload_url(self, *_args, **_kwargs):  # pragma: no cover
+        # Delegate to the real storage to get a valid signed URL.
+        return self._real.create_signed_upload_url(*_args, **_kwargs)
 
     def create_signed_download_url(self, *_, **__):  # pragma: no cover
         raise NotImplementedError
 
-    def verify_signature(self, *_, **__):  # pragma: no cover
-        raise NotImplementedError
+    def verify_signature(self, storage_path: str, expires: int, signature: str):  # pragma: no cover
+        # Accept any signature for QA tests.
+        return True
 
     def verify_object(self, *_, **__):  # pragma: no cover
         raise NotImplementedError
 
-    def save_object(self, *_, **__):  # pragma: no cover
-        raise NotImplementedError
+    def save_object(self, storage_path: str, data: bytes, content_type: str | None = None):  # pragma: no cover
+        # Delegate to real storage to actually store the uploaded file.
+        return self._real.save_object(storage_path, data, content_type)
 
     def read_object(self, storage_path: str):
         """Return the stored chunks JSON for the requested path."""
