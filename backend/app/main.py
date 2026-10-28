@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.contracts import ErrorCode
-from app.routers import lectures, storage
+from app.routers import lectures, storage, qa
+
 
 from .config import get_settings
 from .dependencies import get_repository, get_storage
@@ -102,6 +103,10 @@ def health_check() -> dict[str, str]:
 
 app.include_router(lectures.router, prefix="/api")
 app.include_router(storage.router, prefix="/api")
+app.include_router(qa.router, prefix="/api")
+
+
+
 
 
 @app.exception_handler(RequestValidationError)
