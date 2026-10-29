@@ -1,0 +1,9 @@
+# Evaluation requirements
+
+The evaluation harness depends on a few heavyweight libraries that are not needed for the production backend. Install them in an isolated environment when running the evaluation:
+
+```
+python -m venv eval-venv
+source eval-venv/bin/activate  # on Windows: eval-venv\Scripts\activate
+pip install -r eval/requirements.txt
+```
