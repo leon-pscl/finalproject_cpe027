@@ -113,5 +113,32 @@ class RealNotesGenerator(NotesGenerator):
     def generate(
         self, authorized_timed_chunks: Sequence[Any], config: dict
     ) -> list[Any]:
-        _require_real_mode("RealNotesGenerator")
-        return []
+        # Summarize lecture using OpenAI LLM. Concatenate chunk texts and ask for a short
+        # summary (max ~300 words). This mirrors the mock behavior but produces a real note.
+        from app.answer_generator import OpenAIAnswerGenerator
+
+        # Build a simple context from all chunk texts.
+        context = " ".join(c.get("text", "") for c in authorized_timed_chunks)
+        prompt = (
+            "Summarize the following lecture content in up to 300 words. "
+            "Focus on the main topics, important facts, and any conclusions."
+        )
+        answer_gen = OpenAIAnswerGenerator()
+        summary = answer_gen.generate(prompt, [{"text": context, "chunk_id": "summary"}])
+        # Return a single NoteEntry matching the contracts.
+        from app.contracts import NoteEntry
+
+        return [
+            NoteEntry(
+                note_id="generated-note",
+                lecture_id=str(config.get("lecture_id", "")),
+                version=str(config.get("processing_version", "0")),
+                section="Summary",
+                title="Lecture Summary",
+                description=summary,
+                supporting_segment_ids=[
+                    c.get("chunk_id") for c in authorized_timed_chunks if c.get("chunk_id")
+                ],
+            )
+        ]
+
