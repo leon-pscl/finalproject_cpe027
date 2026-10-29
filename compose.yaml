@@ -11,6 +11,11 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    env_file:
+      - .env
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+
 
   backend:
     build: ./backend
