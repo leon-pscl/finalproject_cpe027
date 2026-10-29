@@ -117,6 +117,7 @@ app.include_router(storage.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
 app.include_router(dsp.router, prefix="/api")
 app.include_router(delete.router, prefix="/api")
+app.include_router(qa.router, prefix="/api")
 
 
 
