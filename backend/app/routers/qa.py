@@ -36,8 +36,8 @@ from app.services.lecture_service import LectureService
 from pydantic import BaseModel
 
 # Add the new FAISS and answer generator imports
-from .vector_store import FAISSVectorStore
-from .answer_generator import OpenAIAnswerGenerator
+from app.vector_store import FAISSVectorStore
+from app.answer_generator import OpenAIAnswerGenerator
 
 # Existing imports ... (keep them as they were)
 import json

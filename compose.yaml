@@ -24,12 +24,14 @@ services:
     environment:
       # Pretrained model, downloaded on first use and cached in the volume below.
       # tiny/base = fast, small = recommended CPU default, medium/large-v3 = best accuracy (GPU advised).
-      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_MODEL: ${WHISPER_MODEL:-whisper-large-v3-turbo}
       WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-auto}
       MODEL_CACHE_DIR: /models
       # dsp.py enhancement for POST /api/transcriptions; the upload pipeline runs
       # media.py DSP once instead (see README).
-      ENHANCE_AUDIO: ${ENHANCE_AUDIO:-false}
+      ASR_PROVIDER: groq
+      GROQ_API_KEY: ${GROQ_API_KEY:-YOUR_GROQ_KEY}
+
       DSP_REVERB_WEIGHT: ${DSP_REVERB_WEIGHT:-0.0}
     volumes:
       - model-cache:/models

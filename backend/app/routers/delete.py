@@ -3,6 +3,7 @@ from app.storage import StorageAdapter
 
 
 from app.auth import VerifiedUser
+from typing import Annotated
 from app.dependencies import get_current_user, get_repository, get_storage
 from app.repositories import LectureRepository
 from app.contracts import LectureStatus
