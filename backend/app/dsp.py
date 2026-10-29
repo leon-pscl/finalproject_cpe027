@@ -146,8 +146,7 @@ def _enhance_block(
     # G is a real spectral gain applied to the complex STFT (noisy phase is kept).
     return istft(Z * G, len(x)), speech
 
-<<<<<<< HEAD
-# ---------------------------------------------------------------- simple spectral subtraction method
+
 def spectral_subtract(x: np.ndarray) -> np.ndarray:
     """Apply a very simple spectral subtraction to audio.
     Uses median noise estimate across frames; no VAD or reverb handling.
@@ -158,10 +157,6 @@ def spectral_subtract(x: np.ndarray) -> np.ndarray:
     G = np.maximum(1.0 - N / (P + EPS), 0.0)
     return istft(Z * G, len(x))
 
-
-
-=======
->>>>>>> origin/iteration_pascual
 
 # ---------------------------------------------------------------- metrics / normalisation
 def _frame_db(x: np.ndarray, frame: int = 320) -> np.ndarray:
@@ -205,10 +200,7 @@ def enhance(
     floor_db: float = -15.0,
     reverb_weight: float = 1.0,
     noise_bias: float = 1.5,
-<<<<<<< HEAD
     method: str = "wiener",
-=======
->>>>>>> origin/iteration_pascual
     on_progress: Callable[[float], None] | None = None,
 ) -> tuple[np.ndarray, DspReport]:
     t0 = time.time()
@@ -223,7 +215,6 @@ def enhance(
     sos = signal.butter(4, 80, btype="highpass", fs=SR, output="sos")
     x = signal.sosfiltfilt(sos, x).astype(np.float32)
 
-<<<<<<< HEAD
     if method == "spectral_subtraction":
         out = spectral_subtract(x)
         out = normalize_loudness(out)
@@ -232,8 +223,6 @@ def enhance(
         report.seconds = time.time() - t0
         return out, report
     # Wiener method (default)
-=======
->>>>>>> origin/iteration_pascual
     core, ctx = CHUNK_S * SR, CONTEXT_S * SR
     out = np.empty_like(x)
     speech_frames = total_frames = 0

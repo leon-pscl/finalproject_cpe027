@@ -11,19 +11,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-<<<<<<< HEAD
 from functools import lru_cache
-=======
 from typing import Literal
->>>>>>> origin/iteration_pascual
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-<<<<<<< HEAD
 from typing import Literal
-=======
->>>>>>> origin/iteration_pascual
 Env = Literal["dev", "staging", "production"]
 EVAL_DATA_ROOT = Path(os.getenv("EVAL_DATA_ROOT", r"E:\Datasets"))
 
