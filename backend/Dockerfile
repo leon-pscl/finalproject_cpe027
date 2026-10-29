@@ -12,6 +12,9 @@ RUN mkdir -p /models
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt --verbose && pip install --no-cache-dir pytest
 
+COPY app ./app
+COPY dsp.py ./dsp.py
+
 COPY tests ./tests
 
 EXPOSE 8000
