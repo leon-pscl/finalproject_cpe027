@@ -29,13 +29,21 @@ class Chunker:
         self.overlap_seconds = settings.chunk_overlap_seconds
 
     def chunk(self, transcript: Transcript, lecture_id: str, version: str) -> List[Chunk]:
-        segments = transcript.segments
+        segments = getattr(transcript, "segments", transcript)
         if not segments:
             return []
 
         # Build timeline tuples (start, end, text, id)
-        timeline = [(seg.start, seg.end, seg.text, seg.id) for seg in segments]
-        total_end = max(end for _, end, _, _ in timeline)
+        timeline = [
+            (
+                getattr(seg, "start", getattr(seg, "start_s", 0.0)),
+                getattr(seg, "end", getattr(seg, "end_s", 0.0)),
+                getattr(seg, "text", ""),
+                getattr(seg, "id", getattr(seg, "segment_id", "")),
+            )
+            for seg in segments
+        ]
+        total_end = max((end for _, end, _, _ in timeline), default=0.0)
         start = 0.0
         chunks: List[Chunk] = []
         while start < total_end:
@@ -58,5 +66,6 @@ class Chunker:
             )
             chunks.append(chunk)
             # Advance start for next window, respecting overlap
-            start = end - self.overlap_seconds
+            step = max(self.chunk_seconds - self.overlap_seconds, 1.0)
+            start += step
         return chunks

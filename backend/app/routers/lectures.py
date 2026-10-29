@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth import VerifiedUser
 from app.contracts import (
+    ErrorCode,
     LectureMetadata,
     UploadCompleteRequest,
     UploadCompleteResponse,
@@ -18,9 +20,11 @@ from app.dependencies import (
     LectureServiceError,
     get_current_user,
     get_lecture_service,
+    get_storage,
     translate_service_error,
 )
 from app.services.lecture_service import LectureService
+from app.storage import StorageAdapter
 
 router = APIRouter(tags=["lectures"])
 
@@ -57,8 +61,6 @@ def get_lecture(
 ):
     lecture = service.get_lecture(user.uid, lecture_id)
     if lecture is None:
-        from app.contracts import ErrorCode
-
         raise HTTPException(
             status_code=404,
             detail={
@@ -67,6 +69,35 @@ def get_lecture(
             },
         )
     return lecture
+
+
+@router.get("/lectures/{lecture_id}/transcript")
+def get_transcript(
+    lecture_id: str,
+    service: Annotated[LectureService, Depends(get_lecture_service)],
+    user: Annotated[VerifiedUser, Depends(get_current_user)],
+    storage: Annotated[StorageAdapter, Depends(get_storage)],
+):
+    lecture = service.get_lecture(user.uid, lecture_id)
+    if lecture is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": ErrorCode.NOT_FOUND.value,
+                "message": "Lecture was not found",
+            },
+        )
+    try:
+        data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/transcript.json")
+        return json.loads(data_bytes)
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": ErrorCode.NOT_FOUND.value,
+                "message": "Transcript not found or still processing",
+            },
+        )
 
 
 @router.post(

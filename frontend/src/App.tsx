@@ -48,7 +48,7 @@ import {
   type LectureProject,
   type WorkflowState,
 } from './services/mock';
-import { type UploadProgress, ApiError, setAccessToken, uploadLecture } from './services/api';
+import { type UploadProgress, ApiError, setAccessToken, uploadLecture, fetchLectureNotes, deleteLectureBackend } from './services/api';
 
 type StatusTone = 'completed' | 'processing' | 'failed';
 
@@ -757,6 +757,27 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
     }
   }, [lecture]);
 
+  useEffect(() => {
+    if (lecture?.id) {
+      fetchLectureNotes(lecture.id)
+        .then((notes) => {
+          if (notes && notes.length > 0) {
+            updateLecture(lecture.id, (proj) => ({
+              ...proj,
+              notes: notes.map((n) => ({
+                id: n.note_id,
+                section: n.section,
+                title: n.title,
+                description: n.description,
+                references: n.supporting_segment_ids || [],
+              })),
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [lecture?.id]);
+
   if (!lecture) {
     return <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">No lecture results available.</div>;
   }
@@ -1095,6 +1116,7 @@ function RecentLecturesPage({ lectures, setLectures }: { lectures: LectureProjec
   const handleDelete = (lectureId: string) => {
     const confirmed = window.confirm('Delete this lecture project?');
     if (confirmed) {
+      void deleteLectureBackend(lectureId).catch(() => {});
       setLectures((current) => current.filter((project) => project.id !== lectureId));
     }
   };
