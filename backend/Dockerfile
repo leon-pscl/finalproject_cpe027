@@ -8,7 +8,7 @@ WORKDIR /app
 RUN mkdir -p /models
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --verbose
 
 COPY app ./app
 
