@@ -1,5 +1,59 @@
 <<<<<<< HEAD
 # LectureFlow
+
+## What this project is
+
+LectureFlow is a lecture transcription prototype that records, transcribes, and optionally enhances audio lectures.
+
+## Program flow
+
+1. **Upload** – Frontend sends audio via `POST /api/transcriptions` (multipart file) or `POST /api/lectures` (lecture metadata) to the FastAPI backend.
+2. **Optional DSP** – If `ENHANCE_AUDIO=true`, the backend runs `backend/app/dsp.py` (Wiener‑gain denoising, optional dereverberation) before transcription.
+3. **ASR** – The (local) Whisper model is invoked through the `faster-whisper` library (`WHISPER_MODEL` env var) to produce a transcript.
+4. **Storage & Retrieval** – Transcripts are stored and served via `GET /api/transcriptions/{id}` and `GET /api/lectures/{id}`. Embeddings are created with MiniLM‑L6‑v2 (`sentence‑transformers`) and indexed in a FAISS‑CPU vector store.
+5. **RAG Generation** – The `/api/rag` endpoint (or `GET /api/answers`) calls the OpenAI `gpt‑4o‑mini` model with a grounding prompt, falling back to pure passage retrieval when the API key is missing.
+6. **Health & Utils** – `GET /api/health` reports service status; other utility endpoints manage uploads, deletion, and worker status.
+
+
+## Libraries / Dependencies
+
+<!-- AUTO-DEP-TABLES START -->
+*This section is generated automatically from `frontend/package.json`, `backend/requirements.txt`, and `eval/requirements.txt` by the helper script `scripts/update_deps_readme.py`.*
+<!-- AUTO-DEP-TABLES END -->
+
+
+## How to run
+
+```sh
+docker compose up --build -d   # start both services
+# Run ngrok to expose the frontend port (default 8080):
+#   ngrok http 8080   # then use the generated public URL for remote demo
+```
+Or for local development:
+
+```sh
+# frontend
+cd frontend && npm ci && npm run dev
+# backend
+cd backend && python -m venv .venv && .\.venv\Scripts\Activate.ps1 && pip install -r requirements.txt && uvicorn app.main:app --reload
+```
+
+## How to get evaluation metrics values
+
+Run the evaluation CLI:
+
+```sh
+python eval/cli.py   # generates results in eval/results/
+```
+
+## Datasets used (and purpose)
+
+- **M3AV** – Multimodal Academic Lecture Dataset (audio‑visual, transcripts). Project page: https://jack-zc8.github.io/M3AV-dataset-page/
+- **ACL 60/60** – IWSLT 2023 multilingual evaluation talks. Hugging Face: https://huggingface.co/datasets/ymoslem/acl-6060
+- **Loquacious** – Short, diverse English speech clips for robustness testing. Interspeech 2025 paper (PDF): https://www.isca-archive.org/interspeech_2025/parcollet25_interspeech.pdf
+- **DEMAND** – Environmental noise recordings (CC BY‑SA 3.0). Zenodo: https://zenodo.org/record/1227120
+- **MUSAN** – Music, speech and noise corpus for noise addition. OpenSLR: https://www.openslr.org/17/
+
 67
 =======
 **⚠️ Risk:** The code now uses stubbed authentication and in‑memory data stores. No real security or persistence is provided; reloads will lose data and any auth is bypassed.
