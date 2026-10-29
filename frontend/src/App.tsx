@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type React
 import {
   AlertCircle,
   AudioLines,
+  Check,
   ChevronDown,
   Copy,
   FileText,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import {
   Navigate,
@@ -46,6 +48,7 @@ import {
   type LectureProject,
   type WorkflowState,
 } from './services/mock';
+import { type UploadProgress, ApiError, setAccessToken, uploadLecture } from './services/api';
 
 type StatusTone = 'completed' | 'processing' | 'failed';
 
@@ -59,6 +62,7 @@ type FormState = {
   language: string;
   preset: DspPreset;
   dspSettings: DspSettings;
+  apiToken: string;
 };
 
 type ValidationErrors = Partial<Record<'file' | 'title', string>>;
@@ -80,6 +84,7 @@ const emptyForm: FormState = {
   language: 'English',
   preset: 'automatic',
   dspSettings: getDspSettings('automatic'),
+  apiToken: import.meta.env.DEV ? import.meta.env.VITE_API_TOKEN ?? '' : '',
 };
 
 function App() {
@@ -116,6 +121,10 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadState, setUploadState] = useState<'idle' | 'submitting' | 'error'>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusMessage, setUploadStatusMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInfo = useMemo(() => inspectAudio(form.file), [form.file]);
 
@@ -138,7 +147,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
     setForm((current) => ({ ...current, file: nextFile }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: ValidationErrors = {};
 
@@ -154,36 +163,77 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
+      setUploadState('idle');
       return;
     }
 
-    const createdProject = buildLectureProject({
-      title: form.title.trim(),
-      subject: form.subject.trim() || 'General lecture',
-      instructor: form.instructor.trim() || 'Unspecified',
-      language: form.language,
-      file: form.file as File,
-      dspPreset: form.preset,
-      dspSettings: form.dspSettings,
-    });
+    if (form.apiToken.trim()) {
+      setAccessToken(form.apiToken.trim());
+    }
 
-    const project: LectureProject = {
-      ...createdProject,
-      id: `lecture-${Date.now()}`,
-      status: 'Processing',
-      workflowState: 'fileSelected',
-      createdAt: new Date().toISOString(),
-      processingDetails: {
-        ...createdProject.processingDetails,
-        processingStatus: 'Queued',
-      },
-    };
+    setUploadState('submitting');
+    setUploadProgress(0);
+    setUploadStatusMessage('Validating upload request with backend…');
+    setUploadError(null);
 
-    updateLectures((current) => [project, ...current]);
-    navigate(`/processing/${project.id}`);
+    try {
+      const uploadResult = await uploadLecture({
+        title: form.title.trim(),
+        file: form.file as File,
+        onProgress: (progress: UploadProgress) => {
+          setUploadProgress(progress.percent);
+          setUploadStatusMessage(
+            `${progress.phase === 'uploading' ? 'Streaming media to backend storage' : progress.phase === 'completing' ? 'Verifying stored lecture' : 'Contacting backend'} (${progress.percent}%)`,
+          );
+        },
+      });
+
+      const createdProject = buildLectureProject({
+        title: form.title.trim(),
+        subject: form.subject.trim() || 'General lecture',
+        instructor: form.instructor.trim() || 'Unspecified',
+        language: form.language,
+        file: form.file as File,
+        dspPreset: form.preset,
+        dspSettings: form.dspSettings,
+      });
+
+      const project: LectureProject = {
+        ...createdProject,
+        id: uploadResult.lectureId,
+        status: 'Processing',
+        workflowState: 'fileSelected',
+        createdAt: uploadResult.lecture?.created_at ?? new Date().toISOString(),
+        processingDetails: {
+          ...createdProject.processingDetails,
+          storagePath: uploadResult.storagePath,
+          backendStage: uploadResult.stage,
+          backendState: uploadResult.lecture?.state ?? 'queued',
+          processingStatus: uploadResult.jobId
+            ? `Queued (job ${uploadResult.jobId})`
+            : 'Queued',
+        } as LectureProject['processingDetails'],
+      };
+
+      setUploadStatusMessage('Upload complete; LectureFlow queued processing.');
+      updateLectures((current) => [project, ...current]);
+      navigate(`/processing/${project.id}`);
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? `${error.code}: ${error.message}`
+          : 'Lecture upload could not be completed.';
+      setUploadState('error');
+      setUploadError(message);
+      setUploadStatusMessage('Upload failed. The local file was not committed to LectureFlow.');
+    }
   };
 
-  const isSubmitDisabled = !form.file || !form.title.trim() || !validateAudio(form.file).isValid;
+  const isSubmitDisabled =
+    !form.file ||
+    !form.title.trim() ||
+    !validateAudio(form.file).isValid ||
+    uploadState === 'submitting';
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -277,6 +327,27 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
             </div>
           ) : null}
 
+          {uploadStatusMessage || uploadError ? (
+            <div
+              className={`rounded-xl border p-4 text-sm ${uploadError ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200' : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200'}`}
+              role={uploadError ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="font-medium">{uploadError ? 'Upload status' : 'Upload progress'}</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  className={`h-full rounded-full transition-all ${uploadError ? 'bg-red-500' : 'bg-teal-600'}`}
+                  style={{ width: `${Math.min(100, Math.max(0, uploadProgress))}%` }}
+                />
+              </div>
+              <p className="mt-2">{uploadStatusMessage ?? 'Waiting for upload instructions.'}</p>
+              {uploadError ? <p className="mt-2 font-medium">{uploadError}</p> : null}
+            </div>
+          ) : null}
+
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Lecture title" htmlFor="title">
               <input
@@ -320,6 +391,26 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 <option>German</option>
               </select>
             </Field>
+            {import.meta.env.DEV ? (
+              <Field label="Local backend API token (development only)" htmlFor="apiToken">
+                <input
+                  id="apiToken"
+                  type="password"
+                  value={form.apiToken}
+                  autoComplete="off"
+                  onChange={(event) => setForm((current) => ({ ...current, apiToken: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Paste a short-lived backend bearer token"
+                  aria-describedby="api-token-help"
+                />
+                <p id="api-token-help" className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Stored in React memory for this session only. It is sent to the Vite /api proxy as a Bearer token and is not written to localStorage or sessionStorage.
+                </p>
+                <p className="sr-only">
+                  This field is for local testing only. Do not enter long-lived production credentials.
+                </p>
+              </Field>
+            ) : null}
           </div>
         </div>
 
@@ -576,7 +667,13 @@ function ProcessingPage({
                           : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
                   }`}
                 >
-                  {isFailed ? '!' : isCompleted ? '✓' : index + 1}
+                  {isFailed ? (
+                    <X className="h-3.5 w-3.5" />
+                  ) : isCompleted ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    index + 1
+                  )}
                 </span>
                 <span className={`text-sm ${isCurrent ? 'font-medium text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}`}>
                   {stage === 'validating'

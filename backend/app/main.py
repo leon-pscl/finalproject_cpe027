@@ -1,3 +1,14 @@
+<<<<<<< HEAD
+<<<<<<< HEAD
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from app.contracts import ErrorCode
+from app.routers import lectures, storage
+=======
+=======
+>>>>>>> iteration_lim
 import os
 import tempfile
 from functools import lru_cache
@@ -11,6 +22,10 @@ from .jobs import JobStore
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".m4a", ".mp4", ".webm", ".ogg", ".flac"}
 CHUNK = 1024 * 1024
+<<<<<<< HEAD
+>>>>>>> iteration_lim
+=======
+>>>>>>> iteration_lim
 
 app = FastAPI(
     title="LectureFlow API",
@@ -63,6 +78,33 @@ def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "lectureflow-backend"}
 
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+app.include_router(lectures.router, prefix="/api")
+app.include_router(storage.router, prefix="/api")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    messages = []
+    for error in exc.errors():
+        location = ".".join(str(item) for item in error.get("loc", []))
+        if location:
+            messages.append(f"{location}: {error.get('msg', 'invalid value')}")
+        else:
+            messages.append(str(error.get("msg", "invalid request")))
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": {
+                "error_code": ErrorCode.INVALID_REQUEST.value,
+                "message": "; ".join(messages),
+            }
+        },
+    )
+=======
+=======
+>>>>>>> iteration_lim
 @app.post("/api/transcriptions", status_code=202, response_model=JobOut, tags=["transcription"])
 async def create_transcription(
     file: UploadFile = File(...), enhance: Optional[bool] = Form(None), store: JobStore = Depends(get_store)
@@ -103,3 +145,7 @@ def get_transcription(job_id: str, store: JobStore = Depends(get_store)) -> JobO
 @app.delete("/api/transcriptions/{job_id}", status_code=204, tags=["transcription"])
 def delete_transcription(job_id: str, store: JobStore = Depends(get_store)) -> None:
     store.delete(job_id)
+<<<<<<< HEAD
+>>>>>>> iteration_lim
+=======
+>>>>>>> iteration_lim

@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { animate } from 'animejs';
 import { ArrowRight } from 'lucide-react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const inputClass =
   'mt-1 block h-14 w-full border border-ink bg-paper px-3 font-sans text-base text-ink ' +
@@ -16,10 +22,18 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const el = formRef.current;
+    if (!el || prefersReducedMotion()) return;
+    animate(el, { opacity: [0, 1], translateY: [8, 0], duration: 260, ease: 'out(3)' });
+  }, []);
 
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
-  if (user) {
+  if (user && !transitioning) {
     return <Navigate to={from} replace />;
   }
 
@@ -30,7 +44,20 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(identifier, password);
-      navigate(from, { replace: true });
+      setTransitioning(true);
+      const el = formRef.current;
+      if (!el || prefersReducedMotion()) {
+        navigate(from, { replace: true });
+        return;
+      }
+      animate(el, {
+        opacity: [1, 0],
+        translateY: [0, -8],
+        duration: 220,
+        ease: 'in(3)',
+        onComplete: () => navigate(from, { replace: true }),
+      });
+      window.setTimeout(() => navigate(from, { replace: true }), 280);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed. Try again.');
     } finally {
@@ -41,6 +68,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-paper px-4 py-10 text-ink">
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         noValidate
         aria-label="Sign in"
