@@ -61,7 +61,8 @@ class ASRModelWrapper:
             chunk = audio[start:start + max_samples]
             fd, tmp_path = tempfile.mkstemp(suffix=".wav")
             os.close(fd)
-            sf.write(tmp_path, chunk, sr)
+            # Write as 16‑bit PCM (Groq expects standard PCM WAV)
+            sf.write(tmp_path, chunk, sr, subtype='PCM_16')
             try:
                 txt = self._transcribe_file(tmp_path)
                 if txt:
