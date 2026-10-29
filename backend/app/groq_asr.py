@@ -51,7 +51,7 @@ def transcribe_file(
 
     files = {"file": (os.path.basename(path), audio_bytes, "application/octet-stream")}
     data = {
-        "model": "whisper-large",  # Groq's Whisper model identifier; adjust if needed
+        "model": settings.whisper_model,  # Uses WHISPER_MODEL env var (must be a valid Groq model ID)
         "response_format": "json",
     }
     if glossary:
