@@ -8,13 +8,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Enable the background worker and use in‑memory repo for quick dev/testing
+      # Enable the background worker and use in-memory repo for quick dev/testing
       WORKER_ENABLED: "true"
       REPOSITORY_BACKEND: memory
       LOCAL_STORAGE_ROOT: /data/storage
       PROCESSING_MODE: mock   # set to "real" if you installed ffmpeg & want full DSP
-      # Optional: tweak limits if needed
       MAX_UPLOAD_MB: "512"
+      PYTHONPATH: /app
     volumes:
       - ./storage:/data/storage   # host folder persists uploaded media across restarts
     restart: unless-stopped
@@ -31,6 +31,7 @@ services:
       WORKER_ENABLED: "false"
       REPOSITORY_BACKEND: memory
       LOCAL_STORAGE_ROOT: /data/storage
+      PYTHONPATH: /app
     volumes:
       - ./storage:/data/storage
     depends_on:

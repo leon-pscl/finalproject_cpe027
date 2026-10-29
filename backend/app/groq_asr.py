@@ -64,6 +64,9 @@ def transcribe_file(
 
     response = requests.post(
         "https://api.groq.com/openai/v1/audio/transcriptions",
+
+
+
         headers=headers,
         data=data,
         files=files,

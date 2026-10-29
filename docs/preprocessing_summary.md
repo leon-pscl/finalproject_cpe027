@@ -33,7 +33,8 @@ The `eval/harness/mixer.py` tool implements the following logic:
 1. **Signal-to-Noise Calculation**: $SNR = 20 \cdot \log_{10}(\frac{RMS_{signal}}{RMS_{noise}})$.
 2. **Noise Adaptation**: Noise is either randomly cropped or tiled to match the length of the clean signal.
 3. **Scaling**: Noise is scaled to achieve the target SNR.
-4. **Normalization**: Peak normalization is applied to prevent clipping after mixing.
+4. **Normalization**: Peak normalization is applied to prevent clipping after mixing. **Resampling**: Both clean and noise audio are resampled to a common 16 kHz mono format before mixing.
+
 
 ## 📂 Final Manifests
 | Manifest | Description |

@@ -163,6 +163,7 @@ class JobDocument(BaseModel):
     lease_until: Optional[datetime] = None
     worker_id: Optional[str] = None
     timings: dict[str, Any] | None = None
+    safe_error_code: Optional[ErrorCode] = None
     dsp: Optional[dict] = None
 
 JobDocument.model_rebuild()

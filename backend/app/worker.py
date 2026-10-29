@@ -270,7 +270,7 @@ class PipelineWorker:
             media = {
                 "audio_asset": audio_asset,
                 "diagnostics": {"probe": {"duration_seconds": duration} if duration is not None else {}},
-                "stage_runtimes": {"high_pass": 0.0, "spectral_gating": 0.0, "normalization": 0.0, "vad": 0.0, "dsp_total": 0.0},
+                "stage_runtimes": {"high_pass": 0.0, "spectral_gating": 0.0, "normalization": 0.0, "vad": 0.0, "dsp_total": 0.1},
                 "dsp_enabled": self.settings.dsp_enabled,
             }
         else:

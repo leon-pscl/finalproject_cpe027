@@ -10,11 +10,11 @@ class OpenAIAnswerGenerator:
     * Keep answers concise and cite the source chunk IDs.
     """
     def __init__(self) -> None:
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
-            raise RuntimeError("OPENAI_API_KEY not set – LLM calls are unavailable")
-        self.endpoint = "https://api.openai.com/v1/chat/completions"
-        self.model = "gpt-4o-mini"
+            raise RuntimeError("GROQ_API_KEY not set – LLM calls are unavailable")
+        self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
+        self.model = "openai/gpt-oss-20b"
         self.system_prompt = (
             "You are a helpful assistant. Answer using only the provided context. "
             "If the context does not contain the answer, say you don't know. "
