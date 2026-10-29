@@ -8,14 +8,14 @@ const playerBtn =
   'flex h-8 items-center gap-1.5 rounded px-2 text-xs hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
 
 function PlayerCard() {
-  const { fileName, stage, player, play, pause, cycleSpeed } = useRecording();
+  const { fileName, stage, player, play, pause, cycleSpeed, dspUrl } = useRecording();
   const hasAudio = fileName !== null;
 
   if (!hasAudio) {
     return <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>;
   }
 
-  return (
+  return (<>
     <div className="rounded-3xl bg-accent/70 px-4 py-4 text-xs leading-5">
       <p className="break-all">Audio Source: {fileName}</p>
       <p className="flex items-center gap-1.5">
@@ -26,10 +26,8 @@ function PlayerCard() {
         />
         {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
       </p>
-      <p>
-        (Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})
-      </p>
-      <p>Playback Speed: {player.speed}x</p>
+      <p>(Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})</p>
+      <p>DSP Playback Speed: {player.speed}x</p>
       <div className="mt-4 flex items-center justify-between">
         <button type="button" onClick={cycleSpeed} className={playerBtn} aria-label={`Change speed, now ${player.speed}x`}>
           <Gauge size={14} aria-hidden="true" /> Speed
@@ -42,7 +40,21 @@ function PlayerCard() {
         </button>
       </div>
     </div>
-  );
+    {/* DSP‑enhanced player */}
+    <div className="rounded-3xl bg-accent/70 px-4 py-4 text-xs leading-5 mt-4">
+      <p className="break-all">Processed Audio: {fileName}</p>
+      <p className="flex items-center gap-1.5">
+        Status:
+        <span
+          aria-hidden="true"
+          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-green-600' : 'bg-amber-500'}`}
+        />
+        {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
+      </p>
+      <p>(Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})</p>
+      {dspUrl && <audio src={dspUrl} controls className="w-full mt-2">Your browser does not support audio.</audio>}
+    </div>
+  </>);
 }
 
 export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
@@ -81,7 +93,7 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
     </button>
   );
 
-  return (
+  return (<>
     <aside aria-label="Assistant" className="flex h-full flex-col">
       {/* Header row: collapse toggle and tabs share one baseline (wireframes 4 and 5). */}
       <div className="grid grid-cols-[2rem_1fr_2rem] items-center gap-2 p-2">
@@ -147,5 +159,6 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
         </form>
       </div>
     </aside>
+    </>
   );
 }

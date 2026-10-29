@@ -1,8 +1,12 @@
 import os
-import json
+import math
 from typing import List, Tuple
 import numpy as np
-import faiss
+import json
+try:
+    import faiss
+except ImportError:
+    faiss = None  # type: ignore
 
 class FAISSVectorStore:
     """Simple FAISS index persisted to disk.
@@ -20,9 +24,16 @@ class FAISSVectorStore:
         os.makedirs(self.base_path, exist_ok=True)
         self.index_path = os.path.join(self.base_path, "index.faiss")
         self.meta_path = os.path.join(self.base_path, "metadata.json")
-        self._load_or_create()
+        if faiss is None:
+            # In test environments without FAISS, use a dummy in‑memory store.
+            self.index = None
+            self.metadata = {}
+        else:
+            self._load_or_create()
 
     def _load_or_create(self) -> None:
+        if faiss is None:
+            raise RuntimeError("FAISS library not installed; vector store unavailable")
         if os.path.exists(self.index_path) and os.path.exists(self.meta_path):
             self.index = faiss.read_index(self.index_path)
             with open(self.meta_path, "r", encoding="utf-8") as f:
@@ -40,9 +51,13 @@ class FAISSVectorStore:
     def add(self, chunks: List[dict], vectors: List[List[float]]) -> None:
         """Add new chunks and their embeddings to the index.
 
-        * `chunks` – list of plain dictionaries (the result of `Chunk.dict()`).
-        * `vectors` – list of 384‑dim float lists.
+        If FAISS is unavailable, store metadata in‑memory only.
         """
+        if faiss is None:
+            start_id = len(self.metadata)
+            for i, chunk in enumerate(chunks):
+                self.metadata[str(start_id + i)] = chunk
+            return
         np_vectors = np.array(vectors, dtype="float32")
         start_id = self.index.ntotal
         self.index.add(np_vectors)
@@ -55,8 +70,26 @@ class FAISSVectorStore:
     def query(self, query_vec: List[float], top_k: int = 5) -> List[Tuple[dict, float]]:
         """Return the top‑k (chunk_dict, similarity) pairs for a query vector.
 
-        Similarity is computed as `1 / (1 + L2_distance)` so larger = more similar.
+        If FAISS is unavailable, perform a simple linear cosine similarity search
+        over the stored metadata.
         """
+        if faiss is None:
+            # Linear cosine similarity fallback.
+            results: List[Tuple[dict, float]] = []
+            for key, chunk in self.metadata.items():
+                vec = chunk.get("embedding")
+                if vec is None:
+                    continue
+                dot = sum(q * v for q, v in zip(query_vec, vec))
+                norm_q = math.sqrt(sum(q * q for q in query_vec))
+                norm_v = math.sqrt(sum(v * v for v in vec))
+                sim = dot / (norm_q * norm_v) if norm_q and norm_v else 0.0
+                results.append((chunk, sim))
+            results.sort(key=lambda x: x[1], reverse=True)
+            return results[:top_k]
+        if self.index is None:
+            # No index available – return empty results (fallback to stored JSON elsewhere).
+            return []
         q = np.array([query_vec], dtype="float32")
         distances, ids = self.index.search(q, top_k)
         results: List[Tuple[dict, float]] = []

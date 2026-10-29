@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import uuid
 from typing import List
+import logging
+logger = logging.getLogger(__name__)
 
 from app.contracts import Chunk
 from app.asr import Transcript
@@ -29,6 +31,7 @@ class Chunker:
         self.overlap_seconds = settings.chunk_overlap_seconds
 
     def chunk(self, transcript: Transcript, lecture_id: str, version: str) -> List[Chunk]:
+        logger.info("Chunker: processing transcript with %d segments for lecture %s", len(transcript.segments), lecture_id)
         segments = transcript.segments
         if not segments:
             return []

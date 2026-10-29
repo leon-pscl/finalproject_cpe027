@@ -86,6 +86,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [progressById, setProgressById] = useState<Record<string, number>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState>(idlePlayer);
+  const [dspUrl, setDspUrl] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('chat');
 
   const chatsRef = useRef(chats);
@@ -226,6 +227,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   : item,
               ),
             );
+            // Update DSP URL for playback
+            if ((job.dsp as any)?.signed_url) {
+              setDspUrl((job.dsp as any).signed_url);
+            }
+
             setProgressById(({ [id]: _removed, ...rest }) => rest);
           } catch {
             const errors = (pollErrorsRef.current.get(id) ?? 0) + 1;
@@ -391,9 +397,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       play,
       pause,
       cycleSpeed,
+       dspUrl,
       seek,
     }),
-    [chats, activeId, active, progressById, fileError, playerState, tab, newNote, selectChat, deleteChat, start, ask, play, pause, cycleSpeed, seek],
+    [chats, activeId, active, progressById, fileError, playerState, tab, newNote, selectChat, deleteChat, start, ask, play, pause, cycleSpeed,
+       dspUrl, seek],
   );
 
   return <RecordingContext.Provider value={value}>{children}</RecordingContext.Provider>;

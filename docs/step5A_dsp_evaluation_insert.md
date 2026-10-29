@@ -32,6 +32,8 @@ Does adding the DSP layer before the same pretrained ASR reduce transcription er
 Tier 1, controlled (simulated). Clean reference speech: the cleanest recordings from E2 (ACL 60/60) and E3 (TED-LIUM 3 manually transcribed dev/test). Choose them by a documented rule using DNSMOS BAK and the SNR proxy on the originals, not by listening. Noise: DEMAND (CC BY-SA 3.0, check the terms) and the noise portion of MUSAN. SNR grid: 20, 10, 5, 0, -5 dB (freeze before any run). Mixing is deterministic: seeded noise selection, random onset, level set from active-speech RMS, clipping protection. Add reverberation only from existing recorded room impulse responses, and label it simulated. Never redistribute mixes.
 
 Tier 2, real recordings (no added noise): E1 M3AV (primary), E2 ACL 60/60, E3 TED-LIUM 3 dev/test, E4 Loquacious dev/test. Verify each licence and the provenance of each reference transcript on a sample. M3AV dev/test references are reported to be a manual combination of Whisper and Microsoft STT output, so check a sample for bias toward Whisper and disclose it. Use only manually transcribed TED-LIUM 3 dev/test talks. Report E4 separately (short clips, not lecture-specific).
+- ✅ E2 ACL, E3 TED-LIUM, and E4 Loquacious datasets are ready for preprocessing; M3AV pending download.
+
 
 The self-recorded demo lecture is excluded from every table.
 

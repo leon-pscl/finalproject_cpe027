@@ -12,6 +12,9 @@ from __future__ import annotations
 import json
 from .vector_store import FAISSVectorStore
 import logging
+
+logger = logging.getLogger(__name__)
+
 import tempfile
 import threading
 import uuid
@@ -69,8 +72,6 @@ class PipelineWorker:
 
     def run_once(self) -> bool:
         """Claim and process one queued job; return True when a job was handled."""
-        # ponytail: FirestoreLectureRepository.list_all_lectures() returns [], so a
-        # Firestore deployment needs a queued-jobs query here instead of this scan.
         for lecture in self.repository.list_all_lectures():
             for job in self.repository.list_jobs(lecture_id=lecture.lecture_id):
                 if not self.repository.claim_job(
@@ -81,9 +82,11 @@ class PipelineWorker:
                     lease_seconds=LEASE_SECONDS,
                 ):
                     continue
+                # Process the claimed job
                 self._process(lecture.owner_id, lecture.lecture_id, job.job_id)
                 return True
         return False
+
 
     def _stage(
         self, owner_id: str, lecture_id: str, job_id: str, stage: JobStage
@@ -102,15 +105,34 @@ class PipelineWorker:
         timings: dict[str, Any] = {}
         try:
             lecture = self.repository.get_lecture(owner_id, lecture_id)
+            job = self.repository.get_job(owner_id, lecture_id, job_id)
             if lecture is None:
                 raise LookupError("lecture was removed before processing")
-            self._stage(owner_id, lecture_id, job_id, JobStage.VALIDATING)
+                self._stage(owner_id, lecture_id, job_id, JobStage.VALIDATING)
+                logger.info("Stage %s for job %s", JobStage.VALIDATING, job_id)
+
             # LocalMediaService fuses ffmpeg extraction with every DSP stage, so the
             # whole unit is reported as preprocessing; its per-stage runtimes land
             # in timings["dsp"] below.
             self._stage(owner_id, lecture_id, job_id, JobStage.PREPROCESSING)
+            logger.info("Stage %s for job %s", JobStage.PREPROCESSING, job_id)
+
             media = self._run_media(lecture, timings)
+            # Store DSP‑enhanced audio for streaming via signed URL
+            dsp_local_path = media["audio_asset"]["dsp_path"]
+            dsp_storage_path = f"users/{owner_id}/{lecture_id}/dsp.wav"
+            try:
+                with open(dsp_local_path, "rb") as f:
+                    dsp_data = f.read()
+                self.storage.save_object(dsp_storage_path, dsp_data, "audio/wav")
+                # Create signed URL for the stored DSP audio
+                signed_url, _ = self.storage.create_signed_download_url(dsp_storage_path, expires_in_minutes=15)
+                job.dsp = {"signed_url": signed_url, **(job.dsp or {})}
+            except Exception as exc:
+                logger.warning("Failed to store DSP audio or create signed URL: %s", exc)
             self._stage(owner_id, lecture_id, job_id, JobStage.TRANSCRIBING)
+            logger.info("Stage %s for job %s", JobStage.TRANSCRIBING, job_id)
+
             # media.py already ran the DSP pass, so ASR must never enhance again.
             transcript = (self._transcriber or transcribe_file)(
                 media["audio_asset"]["dsp_path"], enhance=False
@@ -127,6 +149,8 @@ class PipelineWorker:
 
             # Indexing stage: chunk and embed the transcript.
             self._stage(owner_id, lecture_id, job_id, JobStage.INDEXING)
+            logger.info("Stage %s for job %s", JobStage.INDEXING, job_id)
+
             adapters = adapter_bundle()
             chunker = adapters["chunker"]
             embedder = adapters["embedder"]

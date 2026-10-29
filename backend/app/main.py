@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.contracts import ErrorCode
-from app.routers import lectures, storage, qa, notes, export, delete
+from app.routers import lectures, storage, qa, notes, export, delete, dsp
 
 
 from .config import get_settings
@@ -30,6 +30,15 @@ CHUNK = 1024 * 1024
 async def lifespan(instance: FastAPI):
     """Run the upload pipeline worker for the lifetime of the app."""
     settings = get_settings()
+    if settings.processing_mode == "real":
+        missing = []
+        if not settings.openai_api_key:
+            missing.append("OPENAI_API_KEY")
+        if not settings.groq_api_key:
+            missing.append("GROQ_API_KEY")
+        if missing:
+            logger.warning("Real mode enabled but missing provider keys: %s", ", ".join(missing))
+
     if not settings.worker_enabled:
         logger.info("pipeline worker disabled (set WORKER_ENABLED=true to enable)")
         yield
@@ -80,6 +89,7 @@ class JobOut(BaseModel):
     error: str | None = None
     phase: str = "queued"
     dsp: dict | None = None
+    dsp_url: str | None = None
 
 
 def _to_out(job) -> JobOut:
@@ -93,6 +103,7 @@ def _to_out(job) -> JobOut:
         error=job.error,
         phase=job.phase,
         dsp=job.dsp,
+        dsp_url=job.dsp.get('signed_url') if isinstance(job.dsp, dict) else None,
     )
 
 
@@ -104,7 +115,7 @@ def health_check() -> dict[str, str]:
 app.include_router(lectures.router, prefix="/api")
 app.include_router(storage.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
+app.include_router(dsp.router, prefix="/api")
 app.include_router(delete.router, prefix="/api")
 
 
