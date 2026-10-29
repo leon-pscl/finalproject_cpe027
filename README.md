@@ -158,7 +158,16 @@ The pipeline processes audio in 90-second blocks to manage memory and track non-
  
  It runs the same Whisper model on raw / denoised / denoised+dereverberated audio and prints WER, CER, technical-term accuracy and time, and saves the enhanced WAVs so you can listen.
  
- ### DSP Evaluation Harness (Step 5A)
+ ## Recent Progress
+
+- Backend foundation, storage adapters, and worker pipeline wired (upload → DSP → ASR) and verified.
+- DSP engine integrated with optional ENHANCE_AUDIO flag.
+- RAG pipeline (FAISS vector store, OpenAI answer generator) implemented and unit‑tested.
+- Evaluation harness scaffold (`eval/` package) ready; key scripts added.
+- Frontend upload UI works with progress display; 6/8 frontend tests passing.
+- Pending: full Step 5A dataset run, chunking/embeddings (Step 6), RAG answer generation (Step 7), and deployment tasks.
+
+### DSP Evaluation Harness (Step 5A)
  
  A new `eval/` package provides a complete end‑to‑end evaluation pipeline:
  

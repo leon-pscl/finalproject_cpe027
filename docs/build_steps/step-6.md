@@ -1,6 +1,6 @@
 # Step 6 – Chunking, embeddings, vector index
 
-*Status*: pending  
+*Status*: completed  
 *Artifacts*: (will be filled after implementation)  
 *Changed files*:
 - `backend/app/config.py` (added embed_provider literal, chunk settings)

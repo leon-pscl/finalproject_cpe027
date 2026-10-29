@@ -102,6 +102,8 @@
 
 ## Phase 3: Output Quality (in progress)
 
+- RAG pipeline (FAISS vector store, OpenAI answer generator) integrated and unit‑tested.
+
 - Evaluation harness (Step 5A) dataset preparation: E2, E3, and E4 datasets are ready for preprocessing; M3AV download is pending.
 - Metric scripts (`eval/metrics.py`, `eval/run.py`, etc.) are in place, awaiting execution with real provider keys.
 - Focus tasks: run Tier 2 evaluation, generate results, refine retrieval, answer generation, and notes based on metric outcomes.
