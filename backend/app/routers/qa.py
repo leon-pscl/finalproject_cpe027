@@ -126,16 +126,25 @@ def retrieve_chunks(
             detail={"error_code": ErrorCode.NOT_FOUND.value, "message": "Lecture not found"},
         )
 
-    vector_store = FAISSVectorStore(storage.settings.local_storage_root, lecture_id)
-    if faiss is None or getattr(vector_store, "index", None) is None:
-        # Fallback: read stored chunks directly from storage (used in tests without FAISS or missing index).
-        data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/chunks.json")
-        chunks_data = json.loads(data_bytes.decode())
-        top_chunks = [Chunk(**c) for c in chunks_data[:request.top_k]]
-        return top_chunks
-    # Normal retrieval using FAISS
-    top_chunks = [chunk for chunk, _ in vector_store.query(vector_store.index.reconstruct_n(0, vector_store.index.ntotal), top_k=request.top_k)]
-    return top_chunks
+# Updated retrieve endpoint to use the LangChain‑compatible real retriever
+@@
+-    vector_store = FAISSVectorStore(storage.settings.local_storage_root, lecture_id)
+-    if faiss is None or getattr(vector_store, "index", None) is None:
+-        # Fallback: read stored chunks directly from storage (used in tests without FAISS or missing index).
+-        data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/chunks.json")
+-        chunks_data = json.loads(data_bytes.decode())
+-        top_chunks = [Chunk(**c) for c in chunks_data[:request.top_k]]
+-        return top_chunks
+-    # Normal retrieval using FAISS
+-    top_chunks = [chunk for chunk, _ in vector_store.query(vector_store.index.reconstruct_n(0, vector_store.index.ntotal), top_k=request.top_k)]
+-    return top_chunks
++    # Use the shared retriever adapter (LangChain‑based) for consistency.
++    retriever = adapter_bundle()["retriever"]
++    # The retriever returns all matching chunks; we slice to the requested top_k.
++    all_chunks = retriever.search(user.uid, lecture_id, "v1", request.question)
++    return all_chunks[: request.top_k]
+*** End Patch
+*** End Patch
 
 
 
@@ -155,21 +164,30 @@ def answer_question(
             detail={"error_code": ErrorCode.NOT_FOUND.value, "message": "Lecture not found"},
         )
 
-    if faiss is None or (vector_store := _load_vector_store(get_settings().local_storage_root, lecture_id)).index is None:
-        # Fallback: read stored chunks directly from storage.
-        data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/chunks.json")
-        chunks_data = json.loads(data_bytes.decode())
-        top_chunks = [Chunk(**c) for c in chunks_data[:request.top_k]]
-    else:
-        # Load vector store.
-        from app.config import get_settings
-        settings = get_settings()
-        vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
-        # Embed the query.
-        query_vec = _embed_query(request.question, lecture_id, "v1", settings.local_storage_root)
-        # Retrieve top‑k chunks.
-        results = vector_store.query(query_vec, top_k=request.top_k)
-        top_chunks = [chunk for chunk, _ in results]
+# Updated answer endpoint to use the LangChain‑compatible retriever
+@@
+-    if faiss is None or (vector_store := _load_vector_store(get_settings().local_storage_root, lecture_id)).index is None:
+-        # Fallback: read stored chunks directly from storage.
+-        data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/chunks.json")
+-        chunks_data = json.loads(data_bytes.decode())
+-        top_chunks = [Chunk(**c) for c in chunks_data[:request.top_k]]
+-    else:
+-        # Load vector store.
+-        from app.config import get_settings
+-        settings = get_settings()
+-        vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
+-        # Embed the query.
+-        query_vec = _embed_query(request.question, lecture_id, "v1", settings.local_storage_root)
+-        # Retrieve top‑k chunks.
+-        results = vector_store.query(query_vec, top_k=request.top_k)
+-        top_chunks = [chunk for chunk, _ in results]
++    # Use the unified retriever (LangChain‑based) for consistency.
++    retriever = adapter_bundle()["retriever"]
++    # Retrieve all matching chunks and then apply the requested top_k.
++    all_chunks = retriever.search(user.uid, lecture_id, "v1", request.question)
++    top_chunks = all_chunks[: request.top_k]
+*** End Patch
+*** End Patch
 
 
     # Try to generate an answer via OpenAI.

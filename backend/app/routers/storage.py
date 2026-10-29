@@ -30,15 +30,17 @@ async def signed_upload(
                 }
             },
         )
-    data = await request.body()
-    content_type = request.headers.get("content-type", "").split(";")[0].strip() or None
     try:
+        data = await request.body()
+        content_type = request.headers.get("content-type", "").split(";")[0].strip() or None
         stored = storage.save_object(storage_path, data, content_type)
-    except (OSError, ValueError) as exc:
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("Upload failed for %s", storage_path)
         raise HTTPException(
-            status_code=422,
+            status_code=500,
             detail={
-                "error_code": ErrorCode.STORED_OBJECT_MISMATCH.value,
+                "error_code": ErrorCode.PROCESSING_FAILED.value,
                 "message": str(exc),
             },
         ) from exc
