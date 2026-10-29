@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.contracts import ErrorCode
-from app.routers import lectures, storage, qa
+from app.routers import lectures, storage, qa, notes, export, delete
 
 
 from .config import get_settings
@@ -103,7 +103,9 @@ def health_check() -> dict[str, str]:
 
 app.include_router(lectures.router, prefix="/api")
 app.include_router(storage.router, prefix="/api")
-app.include_router(qa.router, prefix="/api")
+app.include_router(notes.router, prefix="/api")
+app.include_router(export.router, prefix="/api")
+app.include_router(delete.router, prefix="/api")
 
 
 

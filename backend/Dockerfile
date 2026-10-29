@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 
+# Add a longer pip timeout to avoid large wheel failures
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_DEFAULT_TIMEOUT=300
 
 WORKDIR /app
 
