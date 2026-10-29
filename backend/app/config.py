@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # Runtime posture
     env: Env = "dev"
-    processing_mode: Literal["mock", "real"] = "mock"
+    processing_mode: Literal["mock", "real"] = "real"
     asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
     embed_provider: Literal["none", "mock", "openai", "hf"] = "hf"
     llm_provider: str = "openai"
