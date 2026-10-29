@@ -8,6 +8,8 @@ unit tests, mirroring the pattern used in the Groq ASR module.
 from __future__ import annotations
 
 import json
+import logging
+logger = logging.getLogger(__name__)
 from typing import List
 import requests
 
@@ -15,7 +17,7 @@ from app.contracts import Chunk
 from app.config import get_settings
 
 
-from sentence_transformers import SentenceTransformer
+# Lazy import of SentenceTransformer to avoid hard dependency unless needed
 
 class HFEmbedder:
     """Embedding using a self‑hosted Sentence‑Transformer model.
@@ -31,7 +33,7 @@ class HFEmbedder:
         if self._model is None:
             # The model will be downloaded on first run and then cached under the
             # HuggingFace cache directory (e.g., ~/.cache/huggingface).
-            self._model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+                    from sentence_transformers import SentenceTransformer
         return self._model
 
     def embed(self, chunks: List[Chunk]) -> List[List[float]]:
@@ -55,6 +57,7 @@ class Embedder:
         from app.config import get_settings
         settings = get_settings()
         provider = settings.embed_provider
+        logger.info("Embedder: using provider %s for %d chunks", provider, len(chunks))
 
         if provider == "mock":
             # Return a simple zero‑vector for each chunk.
@@ -93,6 +96,7 @@ class Embedder:
         from app.config import get_settings
         settings = get_settings()
         provider = settings.embed_provider
+        logger.info("Embedder: using provider %s for %d chunks", provider, len(chunks))
 
         if provider == "mock":
             # Return a simple 3‑dim zero vector for each chunk (deterministic).

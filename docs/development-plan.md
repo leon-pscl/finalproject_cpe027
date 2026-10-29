@@ -7,7 +7,8 @@ Maps `docs/instructions.md` (Rev 2.3) to the v3 Build Steps. Branch is `iteratio
 - Data: Firestore Native with owner isolation; Admin SDK usage only in worker/API with explicit ownership.
 - Media: Cloud Storage private bucket, owner-scoped paths; signed uploads, server-verified objects.
 - Queue: Firestore transactional lease queue; deterministic job ID `{lectureId}_{version}`.
-- Processing modes: `PROCESSING_MODE=mock|real`, `ENV=dev|staging|production`; reject mock mode in production.
+- Processing modes: `PROCESSING_MODE=mock|real`, `ENV=dev|staging|production`; reject mock mode in production. Live provider keys are set in `.env` enabling real‑mode operation.
+
 - Adapters: `MediaService`, `AudioProcessor`, `Transcriber`, `Chunker`, `Embedder`, `Retriever`, `AnswerGenerator`, `NotesGenerator` exposed by `Mock*` and safe `Real*` (not configured in safe local mode).
 - Vector search: Firestore vector fields; server-side only; owner/lecture/version filter before NN.
 
@@ -62,3 +63,19 @@ Maps `docs/instructions.md` (Rev 2.3) to the v3 Build Steps. Branch is `iteratio
 ---
 
 **Checkpoint:** See `docs/checkpoint.md` for a summary of the RAG pipeline implementation and next steps.
+
+## Phase 3: Output Quality (in progress)
+
+- Run Tier 2 evaluation using the prepared datasets (E2, E3, E4) and the evaluation harness.
+- Analyse metric results (WER, CER, KTER, NSHR, DNSMOS, RTF) to guide improvements in retrieval, answer generation, and notes.
+- Implement refinements based on metric feedback (e.g., retrieval tuning, prompt adjustments, note quality).
+- Validate that evidence‑only answering and citation handling meet the contract tests.
+
+## Phase 4: Optimization & Release (pending)
+
+- Profile performance of DSP, ASR, embedding, retrieval, and answer generation; add caching where beneficial.
+- Implement resumable uploads, cancellation, and bounded retries with progress reporting.
+- Complete deletion workflow across Storage, jobs, chunks/vectors, notes, and Q&A history.
+- Conduct comprehensive security‑rule testing, secret scanning, and final CI verification.
+- Prepare production deployment (real provider keys, CI, CI/CD pipelines) and handoff documentation.
+

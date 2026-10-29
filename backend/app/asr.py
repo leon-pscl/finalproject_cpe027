@@ -59,6 +59,8 @@ def confidence_from_logprob(avg_logprob: float) -> float:
     return max(0.0, min(1.0, math.exp(avg_logprob)))
 
 
+import logging
+
 def transcribe_file(
     path: str,
     on_progress: ProgressFn | None = None,
@@ -74,13 +76,44 @@ def transcribe_file(
     `model` is injectable so tests can run without downloading weights.
     """
     s = get_settings()
+    logger = logging.getLogger(__name__)
+    logger.info("ASR: starting transcription for %s (provider=%s)", path, s.asr_provider)
     if model is not None:
         # Use injected model later; continue with DSP handling below
         pass
     if s.asr_provider == "groq" and model is None:
+        # Apply DSP if enhancement is enabled, then use Groq provider on the (possibly enhanced) audio file.
+        # This mirrors the non‑Groq path: we run dsp.enhance, write the enhanced audio to a temporary wav,
+        # and then call the provider with that file. Any DSP error is recorded in `dsp_info` and the
+        # raw file is used as a fallback.
         from .groq_asr import transcribe_file as provider_transcribe
-        return provider_transcribe(
-            path,
+        import tempfile, os
+        audio_path = path
+        dsp_info: dict | None = None
+        if s.enhance_default if enhance is None else enhance:
+            if on_phase:
+                on_phase("enhancing")
+            try:
+                enhanced, report = dsp.enhance(
+                    dsp.load_audio(path),
+                    rt60=s.dsp_rt60,
+                    floor_db=s.dsp_floor_db,
+                    reverb_weight=s.dsp_reverb_weight if reverb_weight is None else reverb_weight,
+                    noise_bias=s.dsp_noise_bias,
+                    on_progress=(lambda p: on_progress(0.1 * p)) if on_progress else None,
+                )
+                # Write enhanced audio to a temporary wav file for Groq upload
+                fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+                os.close(fd)
+                dsp.write_wav(tmp_path, enhanced)
+                audio_path = tmp_path
+                dsp_info = report.as_dict()
+            except Exception as exc:  # noqa: BLE001
+                dsp_info = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
+        if on_phase:
+            on_phase("transcribing")
+        transcript = provider_transcribe(
+            audio_path,
             on_progress=on_progress,
             on_segment=on_segment,
             glossary=glossary,
@@ -89,6 +122,15 @@ def transcribe_file(
             reverb_weight=reverb_weight,
             on_phase=on_phase,
         )
+        # Attach DSP info to the result if any
+        transcript.dsp = dsp_info
+        # Clean up temporary file if we created one
+        if audio_path != path:
+            try:
+                os.remove(audio_path)
+            except OSError:
+                pass
+        return transcript
     audio = path
     dsp_info: dict | None = None
     base = 0.0
@@ -112,6 +154,7 @@ def transcribe_file(
     if on_phase:
         on_phase("transcribing")
     model = model or get_model()
+    logger.info("ASR model loaded: %s", getattr(model, "model_name", "unknown"))
     stream, info = model.transcribe(
         audio,
         language=None
@@ -141,4 +184,5 @@ def transcribe_file(
             on_segment(seg)
         if on_progress and duration > 0:
             on_progress(base + (1 - base) * min(0.99, float(raw.end) / duration))
+    logger.info("ASR transcription completed – %d segments", len(result.segments))
     return result

@@ -2,7 +2,7 @@
 
 ## Purpose and Precedence
 
-This file replaces v2. The agent builds the whole pipeline (DSP -> ASR -> embedding -> RAG) on the owner's branch `iteration_pascual`. The owner verifies it there, then integrates it into `iteration1-merged`, and only then into `main` for Firebase deployment. `docs/instructions.md` (Rev 2.3) still defines architecture, contracts, security, DSP design, and the Evaluation Plan. This file overrides it only on the points under "Recorded Deviations". Log each deviation in `docs/decision-log.md` before implementing it.
+This file replaces v2. The agent builds the whole pipeline (DSP -> ASR -> embedding -> RAG) on the owner's branch `iteration_pascual`. The owner verifies it there, then integrates it into `iteration1-merged`, and only then into `main` for deployment (no Firebase Hosting). `docs/instructions.md` (Rev 2.3) still defines architecture, contracts, security, DSP design, and the Evaluation Plan. This file overrides it only on the points under "Recorded Deviations". Log each deviation in `docs/decision-log.md` before implementing it.
 
 ## Recorded Deviations
 
@@ -21,7 +21,7 @@ Path: `iteration_pascual` -> `iteration1-merged` -> `main` (deployed).
 - **Before starting**, report the branch state: at last inspection `iteration_pascual` and `iteration1-merged` pointed to the same commit (`5d91b01`), while `main` was one commit ahead (`d2843a7`, message "6 7"), and `iteration_lim` and `iteration_bueno` held teammate work. Compare each branch against `main`, list differences, and ask the owner whether to merge `main` into `iteration_pascual` first. Do not merge or delete branches without approval.
 - **Gate A (verified on `iteration_pascual`)**: all mandatory checks pass locally and in CI, and the end-to-end flow works with the real pipeline on an approved recording. The agent reports; the owner decides.
 - **Gate B (integration in `iteration1-merged`)**: after the owner merges, the agent rebases or merges to resolve conflicts with the teammates' UI changes, re-runs the full check suite, and reports regressions. Do not resolve conflicts by discarding teammate work.
-- **Gate C (promotion to `main`)**: only after Gate B passes and the owner approves. Confirm `main` builds, CI passes, mock mode is rejected for production, and no secrets are in the diff. Deployment to the Firebase web app needs separate owner approval.
+- **Gate C (promotion to `main`)**: only after Gate B passes and the owner approves. Confirm `main` builds, CI passes, mock mode is rejected for production, and no secrets are in the diff. Deployment to the target environment (no Firebase Hosting) needs separate owner approval.
 - Because the pipeline reaches `main` in one large change, keep it behind flags (`PROCESSING_MODE=mock|real`, `ASR_PROVIDER`, `EMBED_PROVIDER`, `LLM_PROVIDER`, `DSP_ENABLED`) so a partial failure cannot break the live app. Preserve existing frontend behavior when the backend is unavailable or in mock mode.
 - Keep the diff reviewable: avoid reformatting or restructuring files unrelated to the pipeline (for example, do not rewrite `App.tsx` wholesale). Large UI refactors increase Gate B merge conflicts with teammates.
 

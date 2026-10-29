@@ -61,6 +61,7 @@ export type RecordingContextValue = {
   pause: () => void;
   cycleSpeed: () => void;
   seek: (seconds: number) => void;
+  dspUrl: string | null;
 };
 
 export const RecordingContext = createContext<RecordingContextValue | null>(null);

@@ -95,8 +95,9 @@ class MockChunker:
 
 
 class MockEmbedder:
-    def embed(self, texts: Sequence[str], config: dict[str, Any]) -> list[list[float]]:
-        return [[0.0, 0.0, 0.0] for _ in texts]
+    def embed(self, chunks, config=None) -> list[list[float]]:
+        # Return a zero vector for each chunk, ignore config.
+        return [[0.0, 0.0, 0.0] for _ in chunks]
 
 
 class MockRetriever:

@@ -99,3 +99,16 @@
 - New coverage (`tests/test_worker.py`, 6 tests): one-DSP-pass assertions with `DSP_ENABLED=false` (Arm A baseline) and `true` (filtered file), DSP failure -> failed job + failed lecture, empty-queue return, lifespan flag gate, and an end-to-end API upload whose job must reach the lifespan worker's repository.
 - Frontend re-verified in this pass: `npm run lint` 0 problems, `npm run build` passed, `npm test -- --run` 9 passed.
 - Not run / not claimed: real Whisper model download (`MODEL_CACHE_DIR` download is owner-gated), Firestore emulator and Firestore worker scan (the in-memory path is what is verified), container run, Firebase emulator rules (Java/`firebase-tools` unavailable), Step 5A harness (not started).
+
+## Phase 3: Output Quality (in progress)
+
+- Evaluation harness (Step 5A) dataset preparation: E2, E3, and E4 datasets are ready for preprocessing; M3AV download is pending.
+- Metric scripts (`eval/metrics.py`, `eval/run.py`, etc.) are in place, awaiting execution with real provider keys.
+- Focus tasks: run Tier 2 evaluation, generate results, refine retrieval, answer generation, and notes based on metric outcomes.
+
+## Phase 4: Optimization & Release (pending)
+
+- Profile pipeline stages (DSP, ASR, embedding, retrieval, answer generation) and implement caching.
+- Implement resumable uploads, cancellation, and robust error handling for large files.
+- Finalize deletion workflow across storage, jobs, chunks/vectors, notes, and Q&A history.
+- Conduct security‑rule audits, secret scans, and full CI verification before production deployment.
