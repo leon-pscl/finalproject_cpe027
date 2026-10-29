@@ -49,20 +49,20 @@ All use one fixed normalization policy (casing, punctuation, numerals, contracti
 Per tier, set, and bin (Tier 1: per SNR level and noise type): delta = Arm A minus Arm B (positive means DSP helped for error metrics), with a paired bootstrap confidence interval resampled over recordings (or fixed-length segments for long-form audio), plus counts. Also report relative WER reduction and the largest per-item regressions. A change is "supported" only if the interval excludes zero. Never pool sets or tiers. State that Tier 2 cannot establish error as a function of controlled SNR, and that Tier 1 noise is simulated.
 
 ## Tasks
-- [ ] 5A.1 Create `eval/` (`eval/README.md`, `eval/requirements.txt`, `eval/manifests/`, `eval/results/` git-ignored) and `docs/evaluation-protocol.md` (design, arms, datasets, normalization policy, metric definitions with denominators, key-term and non-speech rules, bins, decision rule). Keep heavy dependencies (jiwer, pesq, pystoi, torchmetrics, onnxruntime for DNSMOS) out of `backend/requirements.txt`.
-- [ ] 5A.2 Dataset manifests only: identifiers, splits, checksums, counts, licence, and reference provenance for E1-E4 and the noise sources. Add `.gitignore` entries for media, transcripts, and mixes. Flag the `.wav` files already committed under `backend/` to the owner; do not delete them.
-- [ ] 5A.3 Freeze development and held-out subsets per set before any tuning. Tune DSP parameters (high-pass cutoff, spectral-gating strength) on development subsets only.
-- [ ] 5A.4 Freeze key-term lists (rule, list, reviewer recorded). Do not build or adjust them from any arm's output.
-- [ ] 5A.5 Shared metrics module `eval/metrics.py` (normalization, WER/CER with S/D/I, KTER, NSHR). Refactor `backend/app/evaluate.py` to import it or mark it legacy; do not break its CLI without logging the change. Unit tests on hand-written examples only.
-- [ ] 5A.6 Tier 1 mixer `eval/mix.py`: deterministic, seeded, SNR computed on active speech, writes mixes to git-ignored storage with a manifest of seed, noise file, SNR, onset.
-- [ ] 5A.7 Arm builders `eval/arms.py` that produce Arm A, B (with per-stage ablations), C, and the Tier 1 clean arms as WAV files by calling `media.py` and `dsp.py`, recording stage runtimes.
-- [ ] 5A.8 Signal-metric module `eval/signal_metrics.py`: SI-SDR improvement, PESQ, STOI/ESTOI (Tier 1) and DNSMOS wrapper (both tiers). Pin versions and the DNSMOS model files; do not commit weights.
-- [ ] 5A.9 Runner `eval/run.py`: for every item and arm, call `transcribe_file(path, enhance=False)` with identical settings, write per-item CSV/JSON (set, tier, arm, bin or SNR, every metric, runtimes, hardware). Support resume and a `--dry-run` that estimates audio minutes and ASR cost.
-- [ ] 5A.10 Diagnostics and binning for Tier 2 using pre-declared bin edges.
-- [ ] 5A.11 Statistics `eval/report.py`: paired bootstrap, relative reduction, tables per tier/set/bin/SNR, worst-regression list, and one command that regenerates every table from the per-item results.
+- [x] 5A.1 Create `eval/` (`eval/README.md`, `eval/requirements.txt`, `eval/manifests/`, `eval/results/` git-ignored) and `docs/evaluation-protocol.md` (design, arms, datasets, normalization policy, metric definitions with denominators, key-term and non-speech rules, bins, decision rule). Keep heavy dependencies (jiwer, pesq, pystoi, torchmetrics, onnxruntime for DNSMOS) out of `backend/requirements.txt`.
+- [x] 5A.2 Dataset manifests only: identifiers, splits, checksums, counts, licence, and reference provenance for E1-E4 and the noise sources. Add `.gitignore` entries for media, transcripts, and mixes. Flag the `.wav` files already committed under `backend/` to the owner; do not delete them.
+- [x] 5A.3 Freeze development and held-out subsets per set before any tuning. Tune DSP parameters (high-pass cutoff, spectral-gating strength) on development subsets only.
+- [x] 5A.4 Freeze key-term lists (rule, list, reviewer recorded). Do not build or adjust them from any arm's output.
+- [x] 5A.5 Shared metrics module `eval/metrics.py` (normalization, WER/CER with S/D/I, KTER, NSHR). Refactor `backend/app/evaluate.py` to import it or mark it legacy; do not break its CLI without logging the change. Unit tests on hand‑written examples only.
+- [x] 5A.6 Tier 1 mixer `eval/mix.py`: deterministic, seeded, SNR computed on active speech, writes mixes to git‑ignored storage with a manifest of seed, noise file, SNR, onset.
+- [x] 5A.7 Arm builders `eval/arms.py` that produce Arm A, B (with per‑stage ablations), C, and the Tier 1 clean arms as WAV files by calling `media.py` and `dsp.py`, recording stage runtimes.
+- [x] 5A.8 Signal‑metric module `eval/signal_metrics.py`: SI‑SDR improvement, PESQ, STOI/ESTOI (Tier 1) and DNSMOS wrapper (both tiers). Pin versions and the DNSMOS model files; do not commit weights.
+- [x] 5A.9 Runner `eval/run.py`: for every item and arm, call `transcribe_file(path, enhance=False)` with identical settings, write per‑item CSV/JSON (set, tier, arm, bin or SNR, every metric, runtimes, hardware). Support resume and a `--dry-run` that estimates audio minutes and ASR cost.
+- [ ] 5A.10 Diagnostics and binning for Tier 2 using pre‑declared bin edges.
+- [ ] 5A.11 Statistics `eval/report.py`: paired bootstrap, relative reduction, tables per tier/set/bin/SNR, worst‑regression list, and one command that regenerates every table from the per‑item results.
 - [ ] 5A.12 CI: add `eval/` to `ruff check` and `ruff format --check`, and run the metric unit tests. CI must not download datasets, models, or call an ASR.
-- [ ] 5A.13 Development-subset run (owner-approved budget). Write `docs/dsp-evaluation-results.md`: counts, intervals, failures, regressions, the recommended default. Run held-out subsets once after parameters are frozen and disclose any contamination.
-- [ ] 5A.14 Update `docs/phase-status.md`, `docs/decision-log.md`, and `docs/development-plan.md`. Report executed commands, results, unrun items, and blockers. Stop for owner review.
+- [ ] 5A.13 Development‑subset run (owner‑approved budget). Write `docs/dsp-evaluation-results.md`: counts, intervals, failures, regressions, the recommended default. Run held‑out subsets once after parameters are frozen and disclose any contamination.
+- [ ] 5A.14 Update `docs/phase-status.md`, `docs/decision‑log.md`, and `docs/development‑plan.md`. Report executed commands, results, unrun items, and blockers. Stop for owner review.
 
 ## Decision rule (apply, do not weaken)
 - Enable a DSP stage by default only if it gives a supported WER improvement on development subsets for the target bins/SNRs and does not regress, beyond an owner-agreed tolerance, clean-bin WER, CER, KTER, or NSHR.

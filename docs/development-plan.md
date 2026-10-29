@@ -34,7 +34,7 @@ Maps `docs/instructions.md` (Rev 2.3) to the v3 Build Steps. Branch is `iteratio
 - Hosted Whisper-class default + optional faster-whisper; chunking + offset map; anti-loop/hallucination; budgets/timeouts.
 
 ### Step 5A: DSP evaluation harness
-- `eval/`, `docs/evaluation-protocol.md`, manifests, frozen sets/key-term lists, runner Arms A/B/C, metrics, binning, statistics, regeneration command, `docs/dsp-evaluation-results.md`.
+- `eval/`, `docs/evaluation-protocol.md`, manifests, frozen sets/key-term lists, runner Arms A/B/C, metrics, binning, statistics, regeneration command, `docs/dsp-evaluation-results.md` (scaffolded).
 
 ### Step 6: Chunking, embeddings, vector index
 - Segment-aware overlapping chunks; embedder; Firestore composite vector index; server-side filtered queries.

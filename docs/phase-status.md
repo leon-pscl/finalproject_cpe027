@@ -4,7 +4,7 @@
 - Branch: `iteration_pascual` (local only — `origin/iteration_pascual` is still at `fe0598f`, so nothing has been pushed this pass; the merge repair, the style pass, the worker and this doc update are all local).
 - Promotion path: `iteration_pascual` -> `iteration1-merged` -> `main`.
 - Operating mode: safe local (no cloud credentials assumed; hosted runs separately authorized).
-- Active build step: owner-requested upload -> DSP -> ASR wiring is done locally (partial Step 8, executed before Step 5A by owner request); Step 5A not started; Steps 6, 7, 9 not started.
+- Active build step: owner-requested upload -> DSP -> ASR wiring is done locally (partial Step 8, executed before Step 5A by owner request); Step 5A scaffolded (eval/ package ready), Steps 6, 7, 9 not started.
 - Blocked pending owner: push of the 7 local commits, faster-whisper model download (`MODEL_CACHE_DIR`) on first real run, Step 5A dataset/ASR budget.
 
 ## Step 1 progress
