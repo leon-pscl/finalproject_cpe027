@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     env: Env = "dev"
     processing_mode: Literal["mock", "real"] = "mock"
     asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
-    embed_provider: Literal["none", "mock", "openai", "hf"] = "mock"
+    embed_provider: Literal["none", "mock", "openai", "hf"] = "hf"
     llm_provider: str = "openai"
     dsp_enabled: bool = False
 

@@ -49,34 +49,10 @@ class Embedder:
     * HF provider – uses a locally‑hosted sentence‑transformers model.
     """
     def embed(self, chunks: List[Chunk]) -> List[List[float]]:
-        from app.config import get_settings
-        settings = get_settings()
-        provider = getattr(settings, "embed_provider", "mock")
-        logger.info("Embedder: using provider %s for %d chunks", provider, len(chunks))
-
-        if provider == "mock":
-            return [[0.0, 0.0, 0.0] for _ in chunks]
-
-        if provider == "openai":
-            api_key = getattr(settings, "openai_api_key", None)
-            if not api_key:
-                raise RuntimeError("OpenAI API key not configured")
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-            payload = {"model": "text-embedding-ada-002", "input": [c.text for c in chunks]}
-            response = requests.post(
-                "https://api.openai.com/v1/embeddings",
-                headers=headers,
-                json=payload,
-                timeout=30,
-            )
-            data = response.json()
-            vectors = [item["embedding"] for item in data.get("data", [])]
-            for chunk, vec in zip(chunks, vectors):
-                chunk.embedding_model = "openai"
-                chunk.embedding_revision = "text-embedding-ada-002"
-            return vectors
-
-        if provider == "hf":
-            return HFEmbedder().embed(chunks)
-
-        raise RuntimeError(f"Unsupported embed provider: {provider}")
+        # Always use the local Hugging Face embedder (sentence‑transformers).
+        vectors = HFEmbedder().embed(chunks)
+        # Annotate the chunk metadata so downstream code knows the source.
+        for chunk, vec in zip(chunks, vectors):
+            chunk.embedding_model = "hf"
+            chunk.embedding_revision = "sentence-transformers/all-MiniLM-L6-v2"
+        return vectors
