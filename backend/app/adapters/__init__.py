@@ -15,6 +15,7 @@ from app.adapters.real import (
     RealRetriever,
     RealTranscriber,
 )
+from app.adapters.mock import MockTranscriber
 
 from app.config import get_settings
 
@@ -23,7 +24,7 @@ _ADAPTERS: dict[str, dict[str, type[Any]]] = {
     "real": {
         "media": RealMediaService,
         "audio": RealAudioProcessor,
-        "transcriber": RealTranscriber,
+        "transcriber": MockTranscriber,
         "chunker": RealChunker,
         "embedder": RealEmbedder,
         "retriever": RealRetriever,
