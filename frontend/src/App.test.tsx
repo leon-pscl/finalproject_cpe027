@@ -5,6 +5,8 @@ import App from './App';
 
 describe('LectureFlow app', () => {
   beforeEach(() => {
+    // The initial route is protected: seed a demo session so the app renders signed in.
+    window.localStorage.setItem('lectureflow.session', JSON.stringify({ identifier: 'demo', name: 'Demo' }));
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -28,15 +30,15 @@ describe('LectureFlow app', () => {
     );
 
     expect(screen.getAllByText('LectureFlow').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: /process a lecture/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Recent lectures').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /new note/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Continue where you left off').length).toBeGreaterThan(0);
   });
 
   it('disables processing until required upload details are supplied', async () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/new-transcription']}>
+      <MemoryRouter initialEntries={['/new-transcription/advanced']}>
         <App />
       </MemoryRouter>,
     );
