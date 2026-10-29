@@ -1,19 +1,24 @@
 """Application configuration.
 
+# External data root for evaluation datasets (env var EVAL_DATA_ROOT).
+
 Values are read from environment variables (and a local `.env` file in
 development). No secrets are read from committed files.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
+import os
+from pathlib import Path
+
 from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Env = Literal["dev", "staging", "production"]
-ProcessingMode = Literal["mock", "real"]
+EVAL_DATA_ROOT = Path(os.getenv("EVAL_DATA_ROOT", r"E:\Datasets"))
+
 
 
 class Settings(BaseSettings):
