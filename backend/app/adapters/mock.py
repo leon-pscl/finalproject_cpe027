@@ -63,7 +63,7 @@ class MockTranscriber:
 
 class MockChunker:
     def chunk(
-        self, timed_segments: Sequence[TranscriptSegment] | Any, config: dict[str, Any]
+        self, timed_segments: Sequence[TranscriptSegment] | Any, config: dict[str, Any] | None = None
     ) -> list[Chunk]:
         # Support both raw segment list and a Transcript object with .segments
         if hasattr(timed_segments, "segments"):
@@ -95,7 +95,7 @@ class MockChunker:
 
 
 class MockEmbedder:
-    def embed(self, texts: Sequence[str], config: dict[str, Any]) -> list[list[float]]:
+    def embed(self, texts: Sequence[str], config: dict[str, Any] | None = None) -> list[list[float]]:
         return [[0.0, 0.0, 0.0] for _ in texts]
 
 

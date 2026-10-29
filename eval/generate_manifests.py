@@ -1,4 +1,4 @@
-"""Generate dataset manifests for the DSP evaluation.
+r"""Generate dataset manifests for the DSP evaluation.
 
 The script walks the external dataset root defined by the environment variable
 `EVAL_DATA_ROOT` (default ``E:\Datasets``) and creates one JSON manifest per

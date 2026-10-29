@@ -830,3 +830,100 @@ export async function deleteJob(id: string): Promise<void> {
 
 export const toTranscript = (job: JobStatus): TranscriptSegment[] =>
   job.segments.map((s) => ({ id: s.id, start: s.start, end: s.end, speaker: 'Lecturer', text: s.text, confidence: s.confidence }));
+
+
+export interface AnswerSource {
+  source_id: string;
+  segment_id?: string | null;
+  start_s?: number | null;
+  end_s?: number | null;
+  text?: string | null;
+}
+
+export interface AnswerBlock {
+  block_id: string;
+  text: string;
+  source_ids: string[];
+}
+
+export interface AnswerResponse {
+  answer_id: string;
+  lecture_id: string;
+  version: string;
+  status: 'answered' | 'insufficient_evidence' | 'error';
+  blocks: AnswerBlock[];
+  sources: AnswerSource[];
+}
+
+export interface NoteEntry {
+  note_id: string;
+  lecture_id: string;
+  version: string;
+  section: string;
+  title: string;
+  description: string;
+  supporting_segment_ids: string[];
+}
+
+/** Ask question grounded on lecture audio via RAG */
+export async function askLectureQuestion(
+  lectureId: string,
+  question: string,
+  topK: number = 5,
+  options: ApiRequestOptions = {},
+): Promise<AnswerResponse> {
+  return requestJson<AnswerResponse>(
+    /lectures//answer,
+    {
+      ...options,
+      method: 'POST',
+      body: JSON.stringify({ question, top_k: topK }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    },
+  );
+}
+
+/** Fetch or generate structured study notes */
+export async function fetchLectureNotes(
+  lectureId: string,
+  options: ApiRequestOptions = {},
+): Promise<NoteEntry[]> {
+  return requestJson<NoteEntry[]>(
+    /lectures//notes,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
+/** Fetch lecture transcript */
+export async function fetchLectureTranscript(
+  lectureId: string,
+  options: ApiRequestOptions = {},
+): Promise<{ language?: string; duration?: number; segments: Array<{ id: string; start: number; end: number; text: string; confidence: number }> }> {
+  return requestJson(
+    /lectures//transcript,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
+/** Delete a lecture on the backend */
+export async function deleteLectureBackend(
+  lectureId: string,
+  options: ApiRequestOptions = {},
+): Promise<void> {
+  const url = buildApiUrl(/lectures/);
+  const token = await getAccessToken();
+  await fetch(url, {
+    method: 'DELETE',
+    headers: token ? { Authorization: Bearer  } : undefined,
+    signal: options.signal,
+  });
+}

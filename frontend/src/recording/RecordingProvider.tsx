@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { formatTimestamp, validateAudio, type TranscriptSegment } from '../services/mock';
-import { deleteJob, fetchJob, submitTranscription, toTranscript } from '../services/api';
+import { deleteJob, fetchJob, submitTranscription, toTranscript, askLectureQuestion } from '../services/api';
 import { deleteAudio, loadAudio, saveAudio } from './audioStore';
 import { RecordingContext, type ChatMessage, type ChatSession, type PlayerState, type Stage, type Tab } from './context';
 import { stripExtension } from './format';
@@ -323,25 +323,56 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         setActiveId(created.id);
       }
       const id = chat.id;
+      const currentChat = chat;
       const youMessage = makeMessage('you', question);
-      const botMessage = makeMessage('assistant', transcriptLookup(question, chat.transcript));
       const now = Date.now();
       setChats((existing) =>
         existing.map((item) =>
           item.id === id
             ? {
                 ...item,
-                title: item.title === DEFAULT_TITLE ? (question.length > 32 ? `${question.slice(0, 32)}…` : question) : item.title,
-                messages: [...item.messages, youMessage, botMessage],
+                title: item.title === DEFAULT_TITLE ? (question.length > 32 ? ${question.slice(0, 32)}... : question) : item.title,
+                messages: [...item.messages, youMessage],
                 updatedAt: now,
               }
             : item,
         ),
       );
+      const lectureId = currentChat.jobId || currentChat.id;
+      askLectureQuestion(lectureId, question)
+        .then((resp) => {
+          const answerText = resp.blocks.map((b) => b.text).join('\n') || 'No answer found in the lecture.';
+          const botMessage = makeMessage('assistant', answerText);
+          setChats((existing) =>
+            existing.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    messages: [...item.messages, botMessage],
+                    updatedAt: Date.now(),
+                  }
+                : item,
+            ),
+          );
+        })
+        .catch(() => {
+          const fallbackText = transcriptLookup(question, currentChat.transcript);
+          const botMessage = makeMessage('assistant', fallbackText);
+          setChats((existing) =>
+            existing.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    messages: [...item.messages, botMessage],
+                    updatedAt: Date.now(),
+                  }
+                : item,
+            ),
+          );
+        });
     },
     [activeId, makeMessage],
   );
-
   /* ---------- player ---------- */
   const play = useCallback(() => {
     const audio = audioRef.current;

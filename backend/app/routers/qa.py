@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 """Question answering and retrieval endpoints.
 
-Provides a simple retrieval based on stored chunk embeddings and a minimal
-answer generation that concatenates the top retrieved chunks.
+Provides retrieval based on FAISS vector store or stored chunk embeddings,
+and answer generation via OpenAI LLM or concatenation fallback.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import math
 import uuid
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
+from app.adapters import adapter_bundle
+from app.answer_generator import OpenAIAnswerGenerator
 from app.auth import VerifiedUser
+from app.config import get_settings
 from app.contracts import (
     AnswerBlock,
     AnswerResponse,
@@ -25,48 +30,14 @@ from app.contracts import (
 )
 from app.dependencies import (
     get_current_user,
-    get_lecture_service,
     get_repository,
     get_storage,
 )
 from app.repositories import LectureRepository
 from app.storage import StorageAdapter
-from app.adapters import adapter_bundle
-from app.services.lecture_service import LectureService
-from pydantic import BaseModel
+from app.vector_store import FAISSVectorStore
 
-# Add the new FAISS and answer generator imports
-from .vector_store import FAISSVectorStore
-from .answer_generator import OpenAIAnswerGenerator
-
-# Existing imports ... (keep them as they were)
-import json
-import math
-import uuid
-from typing import Annotated, List
-
-from fastapi import APIRouter, Depends, HTTPException, Query
-
-from app.auth import VerifiedUser
-from app.contracts import (
-    AnswerBlock,
-    AnswerResponse,
-    AnswerStatus,
-    Chunk,
-    ErrorCode,
-    SourceReference,
-)
-from app.dependencies import (
-    get_current_user,
-    get_lecture_service,
-    get_repository,
-    get_storage,
-)
-from app.repositories import LectureRepository
-from app.storage import StorageAdapter
-from app.adapters import adapter_bundle
-from app.services.lecture_service import LectureService
-from pydantic import BaseModel
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["qa"])
 
@@ -86,17 +57,35 @@ def _load_vector_store(storage_root: str, lecture_id: str) -> FAISSVectorStore:
     return FAISSVectorStore(storage_root, lecture_id)
 
 
+def _load_chunks(storage: StorageAdapter, owner_id: str, lecture_id: str) -> List[dict]:
+    path = f"users/{owner_id}/{lecture_id}/chunks.json"
+    try:
+        data_bytes, _ = storage.read_object(path)
+        return json.loads(data_bytes)
+    except Exception:
+        return []
+
+
 def _embed_query(question: str, lecture_id: str, version: str, storage_root: str) -> List[float]:
     adapters = adapter_bundle()
     embedder = adapters["embedder"]
     config = {"lecture_id": lecture_id, "version": version}
-    vectors = embedder.embed([Chunk(chunk_id="tmp", lecture_id=lecture_id, version=version, segment_ids=[], start_s=0.0, end_s=0.0, text=question, embedding_model="tmp", embedding_revision="0")])
-    # The embedder expects a list of Chunk objects; we create a temporary one.
+    chunk = Chunk(
+        chunk_id="tmp",
+        lecture_id=lecture_id,
+        version=version,
+        segment_ids=[],
+        start_s=0.0,
+        end_s=0.0,
+        text=question,
+        embedding_model="tmp",
+        embedding_revision="0",
+    )
+    vectors = embedder.embed([chunk], config)
     return vectors[0]
 
 
 def _cosine_sim(a: List[float], b: List[float]) -> float:
-    # Defensive: empty vectors return 0 similarity.
     if not a or not b:
         return 0.0
     dot = sum(x * y for x, y in zip(a, b))
@@ -115,7 +104,6 @@ def retrieve_chunks(
     repository: Annotated[LectureRepository, Depends(get_repository)],
     storage: Annotated[StorageAdapter, Depends(get_storage)],
 ) -> List[Chunk]:
-    # Verify lecture ownership.
     lecture = repository.get_lecture(user.uid, lecture_id)
     if lecture is None:
         raise HTTPException(
@@ -123,18 +111,29 @@ def retrieve_chunks(
             detail={"error_code": ErrorCode.NOT_FOUND.value, "message": "Lecture not found"},
         )
 
-    # Load vector store for this lecture.
-    from app.config import get_settings
     settings = get_settings()
-    vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
-
-    # Embed the query.
     query_vec = _embed_query(request.question, lecture_id, "v1", settings.local_storage_root)
 
-    # Retrieve top‑k chunks.
-    results = vector_store.query(query_vec, top_k=request.top_k)
-    top_chunks = [Chunk(**chunk) for chunk, _ in results]
-    return top_chunks
+    top_chunks: List[dict] = []
+    try:
+        vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
+        results = vector_store.query(query_vec, top_k=request.top_k)
+        top_chunks = [chunk for chunk, _ in results]
+    except Exception as exc:
+        logger.debug("FAISS query failed (%s); checking storage chunks fallback", exc)
+
+    if not top_chunks:
+        stored_chunks = _load_chunks(storage, user.uid, lecture_id)
+        if stored_chunks:
+            scored = []
+            for ch in stored_chunks:
+                emb = ch.get("embedding") or []
+                sim = _cosine_sim(query_vec, emb)
+                scored.append((ch, sim))
+            scored.sort(key=lambda x: x[1], reverse=True)
+            top_chunks = [c for c, _ in scored[: request.top_k]]
+
+    return [Chunk(**chunk) for chunk in top_chunks]
 
 
 @router.post("/lectures/{lecture_id}/answer", response_model=AnswerResponse)
@@ -145,7 +144,6 @@ def answer_question(
     repository: Annotated[LectureRepository, Depends(get_repository)],
     storage: Annotated[StorageAdapter, Depends(get_storage)],
 ) -> AnswerResponse:
-    # Verify lecture ownership.
     lecture = repository.get_lecture(user.uid, lecture_id)
     if lecture is None:
         raise HTTPException(
@@ -153,30 +151,36 @@ def answer_question(
             detail={"error_code": ErrorCode.NOT_FOUND.value, "message": "Lecture not found"},
         )
 
-    # Load vector store.
-    from app.config import get_settings
     settings = get_settings()
-    vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
-
-    # Embed the query.
     query_vec = _embed_query(request.question, lecture_id, "v1", settings.local_storage_root)
 
-    # Retrieve top‑k chunks.
-    results = vector_store.query(query_vec, top_k=request.top_k)
-    top_chunks = [chunk for chunk, _ in results]
+    top_chunks: List[dict] = []
+    try:
+        vector_store = _load_vector_store(settings.local_storage_root, lecture_id)
+        results = vector_store.query(query_vec, top_k=request.top_k)
+        top_chunks = [chunk for chunk, _ in results]
+    except Exception as exc:
+        logger.debug("FAISS query failed (%s); checking storage chunks fallback", exc)
 
-    # Try to generate an answer via OpenAI.
+    if not top_chunks:
+        stored_chunks = _load_chunks(storage, user.uid, lecture_id)
+        if stored_chunks:
+            scored = []
+            for ch in stored_chunks:
+                emb = ch.get("embedding") or []
+                sim = _cosine_sim(query_vec, emb)
+                scored.append((ch, sim))
+            scored.sort(key=lambda x: x[1], reverse=True)
+            top_chunks = [c for c, _ in scored[: request.top_k]]
+
     try:
         answer_gen = OpenAIAnswerGenerator()
         answer_text = answer_gen.generate(request.question, top_chunks)
         status = AnswerStatus.ANSWERED
     except Exception as exc:
-        # Fallback: just concatenate the retrieved passages.
         answer_text = " ".join(c.get("text", "") for c in top_chunks)
-        status = AnswerStatus.ANSWERED  # still marked answered but note fallback in logs
-        # Log the missing API key or other error.
-        import logging
-        logging.getLogger(__name__).warning("LLM generation failed (%s); falling back to retrieved passages", exc)
+        status = AnswerStatus.ANSWERED
+        logger.warning("LLM generation failed (%s); falling back to retrieved passages", exc)
 
     block = AnswerBlock(
         block_id=f"b-{uuid.uuid4().hex[:8]}",
@@ -193,7 +197,7 @@ def answer_question(
         )
         for c in top_chunks
     ]
-    answer = AnswerResponse(
+    return AnswerResponse(
         answer_id=f"ans-{uuid.uuid4().hex[:8]}",
         lecture_id=lecture_id,
         version="v1",
@@ -202,5 +206,3 @@ def answer_question(
         blocks=[block],
         sources=sources,
     )
-    return answer
-
