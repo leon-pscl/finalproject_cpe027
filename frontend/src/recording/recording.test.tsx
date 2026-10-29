@@ -14,6 +14,10 @@ function renderSignedIn() {
 }
 
 describe('recording flow (wireframes 1-5)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     window.localStorage.clear();
     Object.defineProperty(window, 'matchMedia', {
@@ -39,22 +43,48 @@ describe('recording flow (wireframes 1-5)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/unsupported file type/i);
   });
 
-  it('2-5: transcribes, generates notes, then shows the ready view and player', async () => {
+  it('2-5: uploads to the API, shows real progress, then the returned transcript and player', async () => {
+    // Test-only stub of the HTTP boundary; the real backend is covered by backend/tests.
+    let polls = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Response.json({ id: 'job-1', status: 'queued', progress: 0, segments: [] }, { status: 202 });
+      polls += 1;
+      return Response.json(
+        polls < 2
+          ? { id: 'job-1', status: 'processing', progress: 0.4, segments: [], language: null, duration: 0, error: null }
+          : {
+              id: 'job-1',
+              status: 'completed',
+              progress: 1,
+              language: 'en',
+              duration: 95,
+              error: null,
+              dsp: { applied: true, seconds: 1.2, snr_est_before_db: 11.5, snr_est_after_db: 17.25 },
+              segments: [
+                { id: 'seg-1', start: 12, end: 20, text: 'Noise reduction happens before recognition.', confidence: 0.9 },
+                { id: 'seg-2', start: 26, end: 40, text: 'The short-time Fourier transform uses windows.', confidence: 0.8 },
+              ],
+            },
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
     const user = userEvent.setup();
     renderSignedIn();
     await user.upload(screen.getByLabelText(/recording file/i), new File(['x'], 'lecture.wav', { type: 'audio/wav' }));
 
     expect(screen.getByRole('progressbar', { name: /transcribing/i })).toBeInTheDocument();
-    expect(await screen.findByRole('progressbar', { name: /generating notes/i }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByText(/generate structured study notes/i)).toBeInTheDocument();
-
-    expect(await screen.findByText(/transcription ready/i, {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/transcription ready/i, {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/transcriptions');
     expect(screen.getByText('lecture.wav')).toBeInTheDocument();
+    expect(screen.getByText('Noise reduction happens before recognition.')).toBeInTheDocument();
+    expect(screen.queryByText(/generating notes/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/audio enhanced in 1\.2 s \(estimated snr 11\.5 → 17\.3 db\)/i)).toBeInTheDocument();
 
-    // Chat: ask a question, get a timestamped answer.
+    // Chat: the answer is a real transcript segment with its timestamp.
     await user.type(screen.getByLabelText(/message/i), 'What did the lecturer say about noise reduction?');
     await user.keyboard('{Enter}');
-    expect(await screen.findByText(/^\[00:\d\d\]/)).toBeInTheDocument();
+    expect(await screen.findByText(/^\[00:12\] Noise reduction/)).toBeInTheDocument();
 
     // Transcriptions tab: player card.
     await user.click(screen.getByRole('tab', { name: /transcriptions/i }));
@@ -64,4 +94,13 @@ describe('recording flow (wireframes 1-5)', () => {
     await user.click(within(panel).getByRole('button', { name: /change speed/i }));
     expect(within(panel).getByText(/playback speed: 1\.25x/i)).toBeInTheDocument();
   }, 20000);
+
+  it('shows the server error and returns to the drop zone when transcription cannot start', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ detail: 'File exceeds the 300 MB limit.' }, { status: 413 })));
+    const user = userEvent.setup();
+    renderSignedIn();
+    await user.upload(screen.getByLabelText(/recording file/i), new File(['x'], 'big.wav', { type: 'audio/wav' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/exceeds the 300 MB limit/i);
+    expect(screen.getByText(/drag recording here/i)).toBeInTheDocument();
+  });
 });

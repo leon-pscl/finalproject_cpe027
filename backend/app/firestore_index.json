@@ -1,0 +1,9 @@
+[
+  {
+    "collectionGroup": "chunks",
+    "fields": [
+      {"fieldPath": "embedding", "order": "ASCENDING"}
+    ],
+    "queryScope": "COLLECTION"
+  }
+]

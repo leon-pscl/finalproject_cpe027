@@ -1,0 +1,13 @@
+path,sha256,size
+E:\Datasets\loquacius\test\local\test-00000-of-00006.parquet,too_large_to_hash,418553866
+E:\Datasets\loquacius\test\local\test-00001-of-00006.parquet,too_large_to_hash,329170542
+E:\Datasets\loquacius\test\local\test-00002-of-00006.parquet,too_large_to_hash,271973211
+E:\Datasets\loquacius\test\local\test-00003-of-00006.parquet,too_large_to_hash,246348373
+E:\Datasets\loquacius\test\local\test-00004-of-00006.parquet,too_large_to_hash,230365680
+E:\Datasets\loquacius\test\local\test-00005-of-00006.parquet,too_large_to_hash,331651018
+E:\Datasets\loquacius\dev\local\dev-00000-of-00006.parquet,too_large_to_hash,425584687
+E:\Datasets\loquacius\dev\local\dev-00001-of-00006.parquet,too_large_to_hash,319960661
+E:\Datasets\loquacius\dev\local\dev-00002-of-00006.parquet,too_large_to_hash,259303972
+E:\Datasets\loquacius\dev\local\dev-00003-of-00006.parquet,too_large_to_hash,243878887
+E:\Datasets\loquacius\dev\local\dev-00004-of-00006.parquet,too_large_to_hash,221766632
+E:\Datasets\loquacius\dev\local\dev-00005-of-00006.parquet,too_large_to_hash,273028024
