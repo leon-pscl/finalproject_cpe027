@@ -122,6 +122,18 @@ function MiniWave({ seed }: { seed: number }) {
 function TranscriptionReady() {
   const { fileName, transcript, player, seek } = useRecording();
 
+  // Show message if no transcript segments
+  if (transcript.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
+        <h1 className="text-3xl font-medium">Transcription Ready</h1>
+        <div className="mt-6"><BigWave /></div>
+        <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
+        <p className="mt-4 text-center text-neutral-500">No transcription segments were detected.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
       <h1 className="text-3xl font-medium">Transcription Ready</h1>

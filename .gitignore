@@ -8,3 +8,6 @@ coverage
 __pycache__/
 .pytest_cache/
 .mypy_cache/
+.qwen
+.env
+eval/results/

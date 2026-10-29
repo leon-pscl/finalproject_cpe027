@@ -6,7 +6,7 @@ Extend the existing LectureFlow repository (React/Vite frontend, FastAPI backend
 
 | Phase | Primary focus | Required outcome |
 |---|---|---|
-| 1 | Backend foundation on Firebase/GCP, UI wiring, deployment | A deployed end-to-end application using clearly labeled processing fixtures |
+| 1 | Backend foundation on Firebase/GCP, UI wiring (no Firebase Hosting) | A deployed end-to-end application using clearly labeled processing fixtures |
 | 2 | DSP, pretrained ASR, embeddings, and RAG | The same workflow operates on real lecture content |
 | 3 | Evaluation-driven output improvements | Measured WER, CER, key-term, hallucination, retrieval, answer, and citation improvements |
 | 4 | Optimization and release | A tested, documented, reproducible release candidate |
@@ -18,7 +18,7 @@ Extend the existing LectureFlow repository (React/Vite frontend, FastAPI backend
 | Area | Revision 1 | Revision 2.3 |
 |---|---|---|
 | Identity and data | Supabase Auth, Postgres, RLS, pgvector | Firebase Authentication, Firestore, Security Rules, Firestore vector search |
-| Hosting | Vercel (Next.js) | Existing React/Vite build on Firebase Hosting; API and worker on Cloud Run |
+| Hosting | Vercel (Next.js) | Existing React/Vite build served via generic static host (no Firebase Hosting) |
 | Job queue | PostgreSQL queue | Firestore transactional lease queue; Cloud Tasks only if a demonstrated need arises |
 | DSP | Generic FFmpeg + NumPy/SciPy | Explicit, parameterized, individually bypassable chain with a defined comparison design |
 | Evaluation data | WER over an unspecified set | Existing public datasets only (E1-E4); no synthetic audio; self-recorded lecture is demonstration-only |
@@ -58,13 +58,13 @@ Extend the existing LectureFlow repository (React/Vite frontend, FastAPI backend
 
 The audio transcript is the initial knowledge source. State that slide-only equations, diagrams, and text are outside this version's evidence coverage.
 
-## Architecture and Contracts (Firebase / GCP)
+## Architecture and Contracts (Firebase Auth / GCP)
 
 ### Proposed stack
 
 | Layer | Implementation instruction |
 |---|---|
-| Web | Existing React 19 + Vite + TypeScript + Tailwind app; deploy the static build to Firebase Hosting |
+| Web | Existing React 19 + Vite + TypeScript + Tailwind app; deploy the static build via generic static hosting (no Firebase Hosting) |
 | Identity | Firebase Authentication; the API verifies ID tokens with the Firebase Admin SDK |
 | Data | Cloud Firestore (Native mode) with Security Rules |
 | Media storage | Cloud Storage for Firebase, private bucket, owner-scoped paths |
