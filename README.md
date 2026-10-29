@@ -102,4 +102,21 @@ sudo docker-compose -f compose.yaml exec backend python -m app.evaluate \
 
 It runs the same Whisper model on raw / denoised / denoised+dereverberated audio and prints WER, CER, technical-term accuracy and time, and saves the enhanced WAVs so you can listen.
 
+### DSP Evaluation Harness (Step 5A)
+
+A new `eval/` package provides a complete end‑to‑end evaluation pipeline:
+
+- **`eval/cli.py`** – one‑command entry point that generates dataset manifests, builds arms (A, B, C), runs ASR, computes WER, CER, term accuracy and signal‑metrics, and writes **`eval/results/results.csv`** plus an optional markdown report.
+- **`eval/generate_manifests.py`**, **`eval/run.py`**, **`eval/report.py`** and supporting utilities (`mix.py`, `arms.py`, `metrics.py`, `signal_metrics.py`) implement the design described in `docs/step5A_dsp_evaluation_insert.md`.
+- Set the environment variable `EVAL_DATA_ROOT` (default `E:\Datasets`) to point at the external evaluation datasets.
+
+Run the full evaluation with:
+
+```sh
+python eval/cli.py
+```
+
+Use `--dry-run`, `--skip-report`, or `--force-manifests` to customise the run. All generated files are placed under `eval/results/` and are git‑ignored.
+
+
 Synthetic-signal findings (tests/): denoising gains about +7 dB SNR at 0-20 dB input SNR; dereverberation cuts the reverb tail by up to ~6 dB but distorts clean speech, which is why it is off by default.
