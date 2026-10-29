@@ -1,37 +1,53 @@
-"""Shared metric utilities for DSP evaluation.
+import numpy as np
 
-Provides normalization, WER, CER, term accuracy, and key‑term error rate. Uses the same
-implementations as `backend/app/evaluate.py` to keep results consistent.
-"""
+def edit_distance(s1, s2):
+    """Calculates the Levenshtein distance between two sequences."""
+    s1 = np.array(s1)
+    s2 = np.array(s2)
 
-import re
-from typing import List, Tuple
+    if len(s1) < len(s2):
+        return edit_distance(s2, s1)
 
-from rapidfuzz.distance import Levenshtein
+    if len(s2) == 0:
+        return len(s1)
 
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
 
-def normalize(text: str) -> str:
-    """Lower‑case, remove non‑word characters, collapse whitespace."""
-    text = re.sub(r"[^\w\s']", " ", text.lower())
-    return re.sub(r"\s+", " ", text).strip()
+    return previous_row[-1]
 
+def calculate_wer(reference, hypothesis):
+    """
+    Calculates Word Error Rate (WER).
+    WER = (S + D + I) / N
+    """
+    ref_words = reference.split()
+    hyp_words = hypothesis.split()
+    
+    if not ref_words:
+        return float('inf') if hyp_words else 0.0
+    
+    distance = edit_distance(ref_words, hyp_words)
+    return distance / len(ref_words)
 
-def wer(reference: str, hypothesis: str) -> float:
-    ref, hyp = normalize(reference).split(), normalize(hypothesis).split()
-    return Levenshtein.distance(ref, hyp) / max(1, len(ref))
-
-
-def cer(reference: str, hypothesis: str) -> float:
-    ref, hyp = normalize(reference), normalize(hypothesis)
-    return Levenshtein.distance(ref, hyp) / max(1, len(ref))
-
-
-def term_accuracy(reference: str, hypothesis: str, terms: List[str]) -> Tuple[float, int]:
-    """Share of glossary terms present in the reference that also appear in the hypothesis."""
-    ref = f" {normalize(reference)} "
-    hyp = f" {normalize(hypothesis)} "
-    present = [t for t in (normalize(t) for t in terms) if t and f" {t} " in ref]
-    if not present:
-        return float("nan"), 0
-    matched = sum(f" {t} " in hyp for t in present)
-    return matched / len(present), len(present)
+def calculate_accuracy(reference, hypothesis):
+    """Calculates simple word-level accuracy."""
+    ref_words = reference.split()
+    hyp_words = hypothesis.split()
+    
+    if not ref_words:
+        return 0.0 if hyp_words else 1.0
+        
+    matches = 0
+    for r, h in zip(ref_words, hyp_words):
+        if r == h:
+            matches += 1
+            
+    return matches / len(ref_words)

@@ -1,0 +1,87 @@
+{
+    "DKITCHEN": {
+        "path": "E:\\Datasets\\DEMAND\\DKITCHEN_16k\\DKITCHEN\\ch01.wav",
+        "rms": 0.007490680816695381,
+        "sr": 16000
+    },
+    "DLIVING": {
+        "path": "E:\\Datasets\\DEMAND\\DLIVING_16k\\DLIVING\\ch01.wav",
+        "rms": 0.0015063980579671146,
+        "sr": 16000
+    },
+    "DWASHING": {
+        "path": "E:\\Datasets\\DEMAND\\DWASHING_16k\\DWASHING\\ch01.wav",
+        "rms": 0.013776971217506116,
+        "sr": 16000
+    },
+    "NFIELD": {
+        "path": "E:\\Datasets\\DEMAND\\NFIELD_16k\\NFIELD\\ch01.wav",
+        "rms": 0.004422105154596491,
+        "sr": 16000
+    },
+    "NPARK": {
+        "path": "E:\\Datasets\\DEMAND\\NPARK_16k\\NPARK\\ch01.wav",
+        "rms": 0.0018822219271037324,
+        "sr": 16000
+    },
+    "NRIVER": {
+        "path": "E:\\Datasets\\DEMAND\\NRIVER_16k\\NRIVER\\ch01.wav",
+        "rms": 0.007769796844070366,
+        "sr": 16000
+    },
+    "OHALLWAY": {
+        "path": "E:\\Datasets\\DEMAND\\OHALLWAY_16k\\OHALLWAY\\ch01.wav",
+        "rms": 0.002997833955489537,
+        "sr": 16000
+    },
+    "OMEETING": {
+        "path": "E:\\Datasets\\DEMAND\\OMEETING_16k\\OMEETING\\ch01.wav",
+        "rms": 0.001748223431062833,
+        "sr": 16000
+    },
+    "OOFFICE": {
+        "path": "E:\\Datasets\\DEMAND\\OOFFICE_16k\\OOFFICE\\ch01.wav",
+        "rms": 0.006899791191333767,
+        "sr": 16000
+    },
+    "PCAFETER": {
+        "path": "E:\\Datasets\\DEMAND\\PCAFETER_16k\\PCAFETER\\ch01.wav",
+        "rms": 0.005612497499230776,
+        "sr": 16000
+    },
+    "PRESTO": {
+        "path": "E:\\Datasets\\DEMAND\\PRESTO_16k\\PRESTO\\ch01.wav",
+        "rms": 0.005580585739191777,
+        "sr": 16000
+    },
+    "PSTATION": {
+        "path": "E:\\Datasets\\DEMAND\\PSTATION_16k\\PSTATION\\ch01.wav",
+        "rms": 0.01367120156455598,
+        "sr": 16000
+    },
+    "SPSQUARE": {
+        "path": "E:\\Datasets\\DEMAND\\SPSQUARE_16k\\SPSQUARE\\ch01.wav",
+        "rms": 0.010735327328566661,
+        "sr": 16000
+    },
+    "STRAFFIC": {
+        "path": "E:\\Datasets\\DEMAND\\STRAFFIC_16k\\STRAFFIC\\ch01.wav",
+        "rms": 0.01708227382424314,
+        "sr": 16000
+    },
+    "TBUS": {
+        "path": "E:\\Datasets\\DEMAND\\TBUS_16k\\TBUS\\ch01.wav",
+        "rms": 0.08277706352006232,
+        "sr": 16000
+    },
+    "TCAR": {
+        "path": "E:\\Datasets\\DEMAND\\TCAR_16k\\TCAR\\ch01.wav",
+        "rms": 0.0710727224323854,
+        "sr": 16000
+    },
+    "TMETRO": {
+        "path": "E:\\Datasets\\DEMAND\\TMETRO_16k\\TMETRO\\ch01.wav",
+        "rms": 0.03572967056775167,
+        "sr": 16000
+    }
+}
