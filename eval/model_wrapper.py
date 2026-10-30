@@ -4,6 +4,7 @@ except ImportError:
     torch = None
 import soundfile as sf
 import numpy as np
+import librosa
 import os
 import tempfile
 
@@ -16,7 +17,7 @@ class ASRModelWrapper:
     The interface matches the original dummy wrapper (only a `transcribe` method).
     """
     # Maximum chunk length (seconds) to stay within Groq's payload limits.
-    MAX_CHUNK_SECONDS = 30
+    MAX_CHUNK_SECONDS = 60
 
     def __init__(self, model_path: str | None = None, device: str | None = None):
         # model_path/device are kept for compatibility; Groq ignores them.
@@ -27,6 +28,15 @@ class ASRModelWrapper:
         # Whisper model identifier used by Groq (e.g., 'small', 'base')
         self.model = getattr(settings, "whisper_model", "small")
         self.settings = settings
+
+    def _remove_silence(self, audio: np.ndarray, sr: int, top_db: int = 20) -> np.ndarray:
+        """Drop silent sections using librosa's energy‑based split.
+        Returns the concatenated non‑silent audio.
+        """
+        intervals = librosa.effects.split(audio, top_db=top_db)
+        if intervals.size == 0:
+            return np.array([], dtype=audio.dtype)
+        return np.concatenate([audio[start:end] for start, end in intervals])
 
     def _transcribe_file(self, path: str) -> str:
         """Call Groq transcribe on a single (short) audio file and return text."""
@@ -51,6 +61,10 @@ class ASRModelWrapper:
         """
         # Load audio to calculate duration (already 16 kHz mono from the harness)
         audio, sr = sf.read(audio_path)
+        audio = self._remove_silence(audio, sr)
+        # If all silence after VAD, nothing to transcribe
+        if audio.size == 0:
+            return ""
         max_samples = int(self.MAX_CHUNK_SECONDS * sr)
         if len(audio) <= max_samples:
             # Small enough – transcribe directly

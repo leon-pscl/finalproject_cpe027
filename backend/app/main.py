@@ -32,8 +32,7 @@ async def lifespan(instance: FastAPI):
     settings = get_settings()
     if settings.processing_mode == "real":
         missing = []
-        if not settings.openai_api_key:
-            missing.append("OPENAI_API_KEY")
+
         if not settings.groq_api_key:
             missing.append("GROQ_API_KEY")
         if missing:

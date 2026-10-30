@@ -1,0 +1,3 @@
+original_path,noisy_path,text,environment,snr,set
+E:\Datasets\(ACL6060)2023.iwslt-1.2.dataset\2\acl_6060\dev\full_wavs\2022.acl-long.110.wav,E:\EvalWork\noisy_samples\acl_2022.acl-long.110_OOFFICE_0dB.wav,,OOFFICE,0,acl
+E:\Datasets\(ACL6060)2023.iwslt-1.2.dataset\2\acl_6060\dev\full_wavs\2022.acl-long.110.wav,E:\EvalWork\noisy_samples\acl_2022.acl-long.110_OOFFICE_10dB.wav,,OOFFICE,10,acl

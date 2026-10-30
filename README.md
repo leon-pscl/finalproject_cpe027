@@ -54,7 +54,7 @@ LectureFlow is a lecture transcription prototype organized as separate frontend 
  - **M3AV** – Multimodal Academic Lecture Dataset (audio‑visual, transcripts). Project page: https://jack-zc8.github.io/M3AV-dataset-page/
  - **ACL 60/60** – IWSLT 2023 multilingual evaluation talks. Hugging Face: https://huggingface.co/datasets/ymoslem/acl-6060
  - **Loquacious** – Short, diverse English speech clips for robustness testing. Interspeech 2025 paper (PDF): https://www.isca-archive.org/interspeech_2025/parcollet25_interspeech.pdf
- - **DEMAND** – Environmental noise recordings (CC BY‑SA 3.0). Zenodo: https://zenodo.org/record/1227120
+ - **DEMAND** – Environmental noise recordings (CC BY‑SA 3.0). Used as the noise bank to generate synthetic noisy samples; each environment name (e.g., `DKITCHEN`, `OOFFICE`) populates the `environment` column in the benchmark manifest. If the harness is invoked with an explicit `envs` list, the selection is deliberate; otherwise environments are randomly sampled from the full DEMAND set. Zenodo: https://zenodo.org/record/1227120
  - **MUSAN** – Music, speech and noise corpus for noise addition. OpenSLR: https://www.openslr.org/17/
  
  67
@@ -83,6 +83,11 @@ LectureFlow is a lecture transcription prototype organized as separate frontend 
  ```
  
  Stop services with `docker compose down`.
+
+**Caching notes**:
+- The backend Dockerfile now **retains pip caches** (removed `--no-cache-dir`), so subsequent builds are faster when dependencies haven't changed.
+- Model files downloaded by Whisper are stored in a Docker **`model-cache` volume** (`/models`) and persisted across container restarts, avoiding repeated large downloads.
+- The `VOLUME /models` declaration in `backend/Dockerfile` ensures the cache survives `docker compose down`/`up` cycles.
  
  ## Local development
  
@@ -123,7 +128,14 @@ LectureFlow is a lecture transcription prototype organized as separate frontend 
  
  API: `POST /api/transcriptions` (multipart `file`) -> job id; `GET /api/transcriptions/{id}` -> status, progress, segments; `DELETE` removes it. The server deletes the raw audio as soon as processing ends.
  
- Recordings uploaded through `POST /api/lectures/...` are queued and processed by a worker inside the API process (media/DSP, then ASR, then `GET /api/lectures/{id}` reports `completed`). Set `WORKER_ENABLED=false` to disable it.
+ ### Groq ASR Chunking & Rate‑Limiting
+
+- **Chunk size** (`CHUNK_SECONDS`) and **overlap** (`CHUNK_OVERLAP_SECONDS`) can be configured via environment variables. Defaults are 30 s chunks with 5 s overlap.
+- The backend automatically splits long recordings into overlapping chunks, sends each to Groq respecting the provider’s file‑size limit, and merges timestamps using an offset map.
+- Exponential backoff with jitter handles `429 Too Many Requests` responses, respecting the `Retry‑After` header when present.
+- Progress updates (`on_progress`) now reflect the proportion of chunks processed, enabling the frontend to display accurate job progress.
+
+Recordings uploaded through `POST /api/lectures/...` are queued and processed by a worker inside the API process (media/DSP, then ASR, then `GET /api/lectures/{id}` reports `completed`). Set `WORKER_ENABLED=false` to disable it.
  
  Backend tests: `cd backend && pip install -r requirements-dev.txt && pytest` (stub model; no download needed).
  

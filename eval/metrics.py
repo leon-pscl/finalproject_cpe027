@@ -1,5 +1,31 @@
 import numpy as np
 
+def wer(reference, hypothesis):
+    """Word Error Rate – thin wrapper around calculate_wer for backward compatibility."""
+    return calculate_wer(reference, hypothesis)
+
+def cer(reference, hypothesis):
+    """Character Error Rate – Levenshtein distance on characters.
+    Returns the edit distance divided by the number of reference characters.
+    """
+    ref_chars = list(reference)
+    hyp_chars = list(hypothesis)
+    if len(ref_chars) == 0:
+        return float('inf') if hyp_chars else 0.0
+    distance = edit_distance(ref_chars, hyp_chars)
+    return distance / len(ref_chars)
+
+def term_accuracy(reference, hypothesis, terms):
+    """Simple term‑accuracy placeholder.
+    Counts how many of the supplied `terms` appear in both reference and hypothesis.
+    Returns (accuracy, count_of_terms). If `terms` is empty returns (None, 0).
+    """
+    if not terms:
+        return None, 0
+    matches = sum(1 for term in terms if term in reference and term in hypothesis)
+    acc = matches / len(terms)
+    return acc, len(terms)
+
 def edit_distance(s1, s2):
     """Calculates the Levenshtein distance between two sequences."""
     s1 = np.array(s1)

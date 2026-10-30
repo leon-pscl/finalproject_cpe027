@@ -50,5 +50,11 @@ Each entry records a deviation from `docs/instructions.md` Rev 2.3, as required 
 - How applied: `backend/app/worker.py` + FastAPI lifespan; `worker_enabled` (env `WORKER_ENABLED`, default true, forced false in `backend/tests/conftest.py`); claim -> validate -> preprocess -> transcribe -> completed/failed with a lease and heartbeat; stage, DSP configuration/runtimes/diagnostics and ASR metadata in `JobDocument.timings`; transcript written to `users/{owner}/{lecture}/transcript.json`.
 - Known limits (recorded, not hidden): `FirestoreLectureRepository.list_all_lectures()` returns `[]`, so a Firestore deployment needs a queued-jobs query (comment in `worker.py`); media temp outputs are not deleted on success (same behavior as the existing `POST /api/transcriptions` flow); chunks/embeddings/notes stages are not wired.
 
+## 2026-10-26 — Groq ASR chunking, offset mapping, and rate‑limit back‑off
+- Deviation: ASR provider now splits long audio into overlapping chunks, adds silence stripping with offset map, and implements exponential back‑off on 429 responses.
+- Why: Free‑tier Groq limits (≈20 RPM, file‑size caps) would otherwise abort long uploads; chunking keeps requests under limits, offset map preserves original timestamps, back‑off respects provider throttling.
+- How applied: `backend/app/asr.py` now uses `Settings.chunk_seconds` / `chunk_overlap_seconds`, calls `dsp.strip_silence`, iterates over chunks, retries with jitter on 429, logs request count and audio‑seconds sent. Job stages `enhancing`, `rate_limited`, `retrying` added to `JobStage`.
+
 ## Rules retained unchanged
+- No fabricated results, no silent mocks in production, owner isolation, private bucket, deletion, no committed secrets, no training, no second vector DB.
 - No fabricated results, no silent mocks in production, owner isolation, private bucket, deletion, no committed secrets, no training, no second vector DB.
