@@ -101,7 +101,8 @@ def transcribe_file(
         avg_logprob = float(seg.get("avg_logprob", -1.0))
         confidence = max(0.0, min(1.0, math.exp(avg_logprob)))
         segment = Segment(
-            id=seg.get("id", f"seg-{len(transcript.segments) + 1}"),
+            # Groq returns integer segment ids; Segment/SegmentOut require str.
+            id=str(seg.get("id", f"seg-{len(transcript.segments) + 1}")),
             start=start,
             end=end,
             text=text,
