@@ -8,7 +8,8 @@ import json
 import math
 import os
 from typing import Callable, List
-import requests
+import httpx
+import time
 
 # Note: get_settings is imported inside the function to allow monkey‑patching in tests.
 
@@ -52,7 +53,7 @@ def transcribe_file(
     files = {"file": (os.path.basename(path), audio_bytes, "application/octet-stream")}
     data = {
         "model": getattr(settings, "whisper_model", "small"),  # Uses WHISPER_MODEL env var (must be a valid Groq model ID)
-        "response_format": "json",
+        "response_format": "verbose_json",
     }
     if glossary:
         data["prompt"] = ", ".join(glossary)
@@ -62,17 +63,36 @@ def transcribe_file(
     if on_phase:
         on_phase("calling_groq")
 
-    response = requests.post(
-        "https://api.groq.com/openai/v1/audio/transcriptions",
-
-
-
-        headers=headers,
-        data=data,
-        files=files,
-        timeout=60,
-    )
-    response.raise_for_status()
+    max_retries = 5
+    backoff = 2  # seconds
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=60.0,
+            )
+        except httpx.RequestError as exc:
+            # Network‑level error (e.g., connection reset). Retry a few times.
+            if attempt == max_retries:
+                raise
+            print(f"⚠️  Request error – {exc.__class__.__name__}: {exc} – retry {attempt}/{max_retries}")
+            time.sleep(backoff)
+            backoff *= 2
+            continue
+        if response.status_code == 429:
+            wait = int(response.headers.get("Retry-After", backoff))
+            print(f"⚠️ 429 Rate limit hit – sleeping {wait}s (attempt {attempt}/{max_retries})")
+            time.sleep(wait)
+            backoff *= 2
+            continue
+        response.raise_for_status()
+        break
+    else:
+        # exhausted retries
+        response.raise_for_status()
     result = response.json()
 
     # Expected result format (simplified):
@@ -81,7 +101,20 @@ def transcribe_file(
     segments = result.get("segments", [])
     language = result.get("language", "en")
     duration = float(result.get("duration", 0))
-    transcript = Transcript(language=language, duration=duration, dsp=None)
+    transcript = Transcript(language=language, duration=duration)
+
+    # Fallback: if the API returned only a plain text field (no segments), create a single segment.
+    if not segments and result.get("text"):
+        full_text = result["text"].strip()
+        if full_text:
+            segments = [{
+                "id": "0",
+                "start": 0,
+                "end": duration,
+                "text": full_text,
+                "avg_logprob": 0.0,
+            }]
+
 
     for seg in segments:
         text = seg.get("text", "").strip()

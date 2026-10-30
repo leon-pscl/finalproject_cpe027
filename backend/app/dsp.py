@@ -1,8 +1,8 @@
 """Classical DSP speech enhancement (no learned model): the stage that runs before ASR.
 
 Pipeline: decode -> DC/high-pass -> 512-pt STFT (75 % overlap) -> VAD -> noise PSD
-(minimum statistics + VAD-held estimate) -> late-reverberation PSD (Lebart/Habets model)
--> decision-directed Wiener gain -> inverse STFT + overlap-add -> loudness normalisation.
+(minimum statistics  VAD-held estimate) -> late-reverberation PSD (Lebart/Habets model)
+-> decision-directed Wiener gain -> inverse STFT  overlap-add -> loudness normalisation.
 """
 
 from __future__ import annotations
@@ -81,6 +81,92 @@ def load_audio(path: str) -> np.ndarray:
 
 
 # ---------------------------------------------------------------- VAD
+
+def strip_silence(
+    x: np.ndarray,
+    sr: int = SR,
+    padding_ms: int = 250,
+    min_gap_ms: int = 500,
+    vad_threshold: float | None = None,
+) -> tuple[np.ndarray, list[tuple[float, float, float]]]:
+    """Remove silent sections while keeping a mapping to original timestamps.
+
+    * ``x`` – Input PCM‑16 audio (float32).
+    * ``sr`` – Sample rate (default 16 kHz).
+    * ``padding_ms`` – Extra padding added **before and after** each speech segment
+      to avoid clipping word onsets (default 250 ms).
+    * ``min_gap_ms`` – Gaps shorter than this are merged instead of being cut.
+    * ``vad_threshold`` – Optional custom threshold passed to ``detect_speech``.
+
+    Returns a tuple ``(audio_stripped, offset_map)`` where ``audio_stripped`` is the
+    concatenated speech audio (with padding) and ``offset_map`` is a list of tuples
+    ``(orig_start_s, orig_end_s, stripped_start_s)`` for each retained segment.
+    ``orig_*`` are timestamps in the original recording, ``stripped_start_s`` is the
+    start time of that segment in the stripped audio. This map enables remapping of
+    ASR timestamps back to the original timeline.
+    """    # Compute VAD mask (binary per frame). ``detect_speech`` expects a power
+    # spectrogram; we reuse it via an intermediate STFT.
+    Z = stft(x)
+    P = (np.abs(Z) ** 2).astype(np.float32)
+    speech_mask = detect_speech(P)
+
+    # Convert mask from frames to sample indices.
+    frame_hop = HOP
+    frame_len = NFFT
+    # Number of frames
+    n_frames = speech_mask.shape[0]
+    # Determine sample boundaries for each frame
+    frame_offsets = np.arange(n_frames) * frame_hop
+    # Build list of speech intervals (sample indices)
+    intervals: list[tuple[int, int]] = []
+    in_speech = False
+    start_idx = 0
+    for i, is_speech in enumerate(speech_mask):
+        if is_speech and not in_speech:
+            in_speech = True
+            start_idx = frame_offsets[i]
+        elif not is_speech and in_speech:
+            in_speech = False
+            end_idx = frame_offsets[i] + frame_len
+            intervals.append((start_idx, end_idx))
+    if in_speech:
+        intervals.append((start_idx, len(x)))
+
+    # Merge intervals separated by a gap smaller than min_gap_ms
+    merged: list[tuple[int, int]] = []
+    min_gap_samples = int(min_gap_ms / 1000 * sr)
+    for start, end in intervals:
+        if not merged:
+            merged.append((start, end))
+        else:
+            prev_start, prev_end = merged[-1]
+            if start - prev_end <= min_gap_samples:
+                merged[-1] = (prev_start, end)  # extend
+            else:
+                merged.append((start, end))
+
+    # Apply padding around each merged interval and build offset map
+    pad_samples = int(padding_ms / 1000 * sr)
+    stripped_parts: list[np.ndarray] = []
+    offset_map: list[tuple[float, float, float]] = []
+    current_stripped = 0.0
+    for seg_start, seg_end in merged:
+        # Apply padding, clipped to signal bounds
+        p_start = max(0, seg_start - pad_samples)
+        p_end = min(len(x), seg_end + pad_samples)
+        segment = x[p_start:p_end]
+        stripped_parts.append(segment)
+        orig_start_s = p_start / sr
+        orig_end_s = p_end / sr
+        offset_map.append((orig_start_s, orig_end_s, current_stripped))
+        current_stripped = (p_end - p_start) / sr
+
+    if not stripped_parts:
+        # No speech detected – return original audio unchanged and an identity map.
+        return x, [(0.0, len(x) / sr, 0.0)]
+
+    audio_stripped = np.concatenate(stripped_parts).astype(np.float32)
+    return audio_stripped, offset_map
 def detect_speech(P: np.ndarray) -> np.ndarray:
     """Frame-level voice activity from the power spectrogram P (freq x time).
 
@@ -185,7 +271,7 @@ def normalize_loudness(x: np.ndarray, target_db: float = TARGET_RMS_DB) -> np.nd
     )
     gain = min(
         10 ** (target_db / 20) / (rms + EPS), 100.0
-    )  # up to +40 dB for distant-mic recordings
+    )  # up to 40 dB for distant-mic recordings
     y = x * gain
     peak = float(np.abs(y).max())
     if peak > 0.99:
@@ -231,8 +317,8 @@ def enhance(
         a, b = max(0, s - ctx), min(len(x), s + core + ctx)
         y, speech = _enhance_block(x[a:b], rt60, floor_db, reverb_weight, noise_bias)
         out[s : min(len(x), s + core)] = y[s - a : s - a + min(core, len(x) - s)]
-        speech_frames += int(speech.sum())
-        total_frames += len(speech)
+        speech_frames = int(speech.sum())
+        total_frames = len(speech)
         if on_progress:
             on_progress((i + 1) / len(starts))
 

@@ -1,8 +1,6 @@
 """Embedder implementation – converts chunk text into dense vectors.
 
-Supports a mock provider (safe‑local mode) and an OpenAI provider. The function
-imports `get_settings` inside the method to allow easy monkey‑patching in
-unit tests, mirroring the pattern used in the Groq ASR module.
+Supports a mock provider (safe‑local mode), an OpenAI provider, a Groq provider, and an HF provider.
 """
 
 from __future__ import annotations
@@ -16,7 +14,7 @@ from app.contracts import Chunk
 
 logger = logging.getLogger(__name__)
 
-# Lazy import of SentenceTransformer to avoid hard dependency unless needed
+from .config import get_settings
 class HFEmbedder:
     """Embedding using a self‑hosted Sentence‑Transformer model.
 
@@ -49,9 +47,33 @@ class Embedder:
     * HF provider – uses a locally‑hosted sentence‑transformers model.
     """
     def embed(self, chunks: List[Chunk]) -> List[List[float]]:
-        # Always use the local Hugging Face embedder (sentence‑transformers).
+        settings = get_settings()
+        provider = settings.embed_provider
+        texts = [c.text for c in chunks]
+        if provider == "mock":
+            # Return deterministic zero‑vectors (3‑dimensional for test expectations)
+            vectors = [[0.0, 0.0, 0.0] for _ in chunks]
+            for chunk, vec in zip(chunks, vectors):
+                chunk.embedding_model = "mock"
+                chunk.embedding_revision = "zero"
+            return vectors
+        if provider in ("openai", "groq"):
+            api_key = settings.openai_api_key if provider == "openai" else settings.groq_api_key
+            if not api_key:
+                raise RuntimeError("OpenAI API key not configured")
+            endpoint = "https://api.openai.com/v1/embeddings" if provider == "openai" else "https://api.groq.com/openai/v1/embeddings"
+            payload = {"model": "text-embedding-ada-002", "input": texts}
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            resp = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            embeddings = [item["embedding"] for item in data.get("data", [])]
+            for chunk, vec in zip(chunks, embeddings):
+                chunk.embedding_model = provider
+                chunk.embedding_revision = "text-embedding-ada-002"
+            return embeddings
+        # Default: HF embedder
         vectors = HFEmbedder().embed(chunks)
-        # Annotate the chunk metadata so downstream code knows the source.
         for chunk, vec in zip(chunks, vectors):
             chunk.embedding_model = "hf"
             chunk.embedding_revision = "sentence-transformers/all-MiniLM-L6-v2"

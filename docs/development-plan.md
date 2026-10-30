@@ -32,7 +32,10 @@ Maps `docs/instructions.md` (Rev 2.3) to the v3 Build Steps. Branch is `iteratio
 - Safe FFmpeg extraction, normalized Arm A baseline, bypassable DSP chain with configs, diagnostics.
 
 ### Step 5: ASR adapter
-- Hosted Whisper-class default + optional faster-whisper; chunking + offset map; anti-loop/hallucination; budgets/timeouts.
+- Hosted Whisper‑class default + optional faster‑whisper; includes **silence stripping** (`dsp.strip_silence`) and **configurable overlapping chunking** (`Settings.chunk_seconds`/`chunk_overlap_seconds`).
+- Sends each chunk to Groq respecting the provider’s file‑size limit, merges timestamps via an **offset map**, and implements **exponential back‑off with jitter** on `429 Too Many Requests` (uses `Retry‑After` when present).
+- Tracks request count and audio‑seconds sent for metrics, and updates job stage to `enhancing`, `rate_limited`, `retrying` as needed.
+
 
 ### Step 5A: DSP evaluation harness
 - `eval/`, `docs/evaluation-protocol.md`, manifests, frozen sets/key-term lists, runner Arms A/B/C, metrics, binning, statistics, regeneration command, `docs/dsp-evaluation-results.md` (scaffolded).

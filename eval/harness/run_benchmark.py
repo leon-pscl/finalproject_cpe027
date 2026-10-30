@@ -12,9 +12,9 @@ from eval.model_wrapper import ASRModelWrapper
 
 # Optional: test Groq LLM Answer Generator (used later in RAG pipelines)
 try:
-    from backend.app.answer_generator import OpenAIAnswerGenerator
+    from backend.app.answer_generator import GroqAnswerGenerator
 except Exception:
-    OpenAIAnswerGenerator = None
+    GroqAnswerGenerator = None
 
 
 def _test_groq_endpoint() -> bool:
@@ -45,10 +45,10 @@ def _test_openai_endpoint() -> bool:
     """Send a trivial prompt to the Groq LLM answer generator to verify the key.
     Returns True on success, False on failure.
     """
-    if OpenAIAnswerGenerator is None:
+    if GroqAnswerGenerator is None:
         return True  # No generator available – skip the test
     try:
-        gen = OpenAIAnswerGenerator()
+        gen = GroqAnswerGenerator()
         _ = gen.generate("What is 2+2?", [])
         return True
     except Exception as e:
@@ -75,12 +75,12 @@ def run_benchmark(
     # 1️⃣ Verify external APIs
     print("\n=== Testing API endpoints ===")
     if not _test_groq_endpoint():
-        print("❌ Groq API test failed – aborting benchmark.")
+        print("X Groq API test failed – aborting benchmark.")
         return
     if not _test_openai_endpoint():
-        print("❌ Groq LLM API test failed – aborting benchmark.")
+        print("X Groq LLM API test failed – aborting benchmark.")
         return
-    print("✅ All endpoints reachable. Starting benchmark...\n")
+    print("OK All endpoints reachable. Starting benchmark...\n")
 
     # 2️⃣ Initialize the ASR wrapper (Groq)
     model_wrapper = ASRModelWrapper(model_path)
@@ -102,8 +102,15 @@ def run_benchmark(
         # Normalize audio (handles wav, parquet, archives)
         try:
             normalized_path = normalize_audio(noisy_path)
+            # Skip files that are too long (default 30 s, override via MAX_DURATION_SECONDS env var)
+            max_dur = float(os.getenv("MAX_DURATION_SECONDS", "30"))
+            audio, sr = sf.read(normalized_path)
+            duration = len(audio) / sr
+            if duration > max_dur:
+                # print(f"⚠️ Skipping long file ({duration:.1f}s) – exceeds {max_dur}s")
+                continue
         except Exception as e:
-            print(f"⚠️ Normalization failed for {noisy_path}: {e}")
+            print(f"WARN Normalization failed for {noisy_path}: {e}")
             print("Aborting benchmark due to conversion error.")
             return
         reference_text = row["text"]
@@ -122,12 +129,14 @@ def run_benchmark(
         print(f"Path      : {normalized_path}")
         print(f"Dataset   : {dataset}, Env: {env}, SNR: {snr} dB")
 
-        # Rate‑limit to 15 requests per minute (≈4 s between calls)
+        # Rate‑limit (default 20 RPM ≈3 s between calls). Override via GROQ_RPM env var.
         now = time.time()
         elapsed = now - last_request_time
-        if elapsed < 4.0:
-            sleep_time = 4.0 - elapsed
-            print(f"Rate‑limit: sleeping {sleep_time:.2f}s before next ASR request")
+        rpm = int(os.getenv("GROQ_RPM", "20"))
+        interval = 60.0 / rpm
+        if elapsed < interval:
+            sleep_time = interval - elapsed
+            print(f"Rate-limit: sleeping {sleep_time:.2f}s before next ASR request")
             time.sleep(sleep_time)
         last_request_time = time.time()
 
@@ -135,7 +144,7 @@ def run_benchmark(
         try:
             hypothesis = model_wrapper.transcribe(normalized_path)
         except Exception as e:
-            print(f"⚠️ Transcription failed for {normalized_path}: {e}")
+            print(f"WARN Transcription failed for {normalized_path}")
             print("Aborting benchmark due to ASR error.")
             return
 
@@ -153,6 +162,9 @@ def run_benchmark(
             "wer": wer,
             "accuracy": acc,
         })
+        # Immediate per‑sample output for debugging
+        # Reference and hypothesis snippets omitted to avoid encoding issues
+        print(f"Result - WER: {wer:.4f}, Accuracy: {acc:.4f}")
 
         if (idx + 1) % 10 == 0:
             print(f"Processed {idx + 1}/{total} samples...")
@@ -161,13 +173,21 @@ def run_benchmark(
     results_df = pd.DataFrame(results)
     results_df.to_csv(output_report, index=False)
 
+    if results_df.empty:
+        print("\nNo results were generated (all samples may have been skipped).")
+        # Still write an empty summary file for completeness
+        summary = pd.DataFrame(columns=["set", "environment", "snr", "wer", "accuracy"]).reset_index(drop=True)
+        summary_path = report_path.with_name("summary_report.csv")
+        summary.to_csv(summary_path, index=False)
+        print(f"Summary report (empty) saved to: {summary_path}")
+        return
+
     # 7️⃣ Summary report
-    print("\n--- Benchmark Summary ---")
     summary = results_df.groupby(["set", "environment", "snr"])[["wer", "accuracy"]].mean().reset_index()
+    print("\n--- Benchmark Summary ---")
     print(summary.to_string(index=False))
     summary_path = report_path.with_name("summary_report.csv")
     summary.to_csv(summary_path, index=False)
-
     print(f"\nDetailed report saved to: {output_report}")
     print(f"Summary report saved to: {summary_path}")
 

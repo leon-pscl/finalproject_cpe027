@@ -1,6 +1,6 @@
 # Evaluation Harness Guide
 
-This guide explains how to use the **Step 5A Evaluation Harness** to generate a synthetic noisy test set for ASR evaluation, and how to run the benchmark that uses the real Groq Whisper API and OpenAI RAG pipeline.
+This guide explains how to use the **Step 5A Evaluation Harness** to generate a synthetic noisy test set for ASR evaluation, and how to run the benchmark that uses the real Groq Whisper API and the RAG pipeline (which calls the `OpenAIAnswerGenerator` class – despite its name it actually invokes Groq’s `openai/gpt-oss-20b` model).
 
 ---
 
@@ -44,10 +44,13 @@ run_harness(
         "loq": "eval/manifests/loq_manifest.csv",
     },
     snrs=[0, 10, 20],                 # target SNR levels (dB)
-    envs=["OOFFICE", "STRAFFIC"],   # subset of DEMAND environments
+    envs=["OOFFICE", "STRAFFIC"],   # explicit list of DEMAND environments (deliberate choice)
+    # If `envs` is omitted, the harness randomly selects environments from the full DEMAND set.
     output_dir=r"E:\EvalWork\my_subset",
 )
 ```
+
+**Note**: The `environment` values correspond to the DEMAND noise bank folder names (e.g., `DKITCHEN`, `OOFFICE`). They are stored in the `environment` column of the manifest and identify the noise source applied to each sample.
 
 ---
 
@@ -90,6 +93,10 @@ The benchmark script:
 - **Stable sequential processing** – We replaced the previous `ThreadPoolExecutor` with a simple sequential loop. This avoids memory pressure and Windows file‑handle conflicts (`WinError 32`).
 - **Wrapper script** – `run_harness.py` lives at the repository root, imports `run_harness` from `eval.harness.run_eval`, and ensures the `eval` package is importable without the `-m` flag.
 - **No dummy models** – `eval/model_wrapper.py` now calls the real Groq Whisper endpoint; the RAG pipeline already uses the real OpenAI ChatGPT (`gpt‑4o‑mini`).
+- **Rate‑limit handling** – The benchmark enforces a configurable request‑per‑minute limit via the `GROQ_RPM` environment variable (default **20 rpm**, ≈3 s between calls). Adjust `GROQ_RPM` in `.env` if you need a higher or lower throughput.
+- **Voice‑activity detection (VAD)** – Silence is stripped using a lightweight librosa‑based energy split before chunking, reducing the number of ASR requests per file.
+- **Exponential backoff** – 429 (Too Many Requests) responses are automatically retried with exponential backoff, so the benchmark pauses instead of aborting.
+
 
 ---
 

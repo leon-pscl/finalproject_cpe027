@@ -120,7 +120,7 @@ def normalize_audio(src_path: str) -> str:
         audio, sr = sf.read(src_path)
 
     # Determine cache filename
-    cached_path = _CACHE_DIR / f"{cache_key}.wav"
+    cached_path = _CACHE_DIR / cache_key
     if cached_path.exists():
         return str(cached_path)
 
