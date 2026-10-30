@@ -28,12 +28,18 @@ def transcribe_file(
     enhance: bool | None = None,
     reverb_weight: float | None = None,
     on_phase: PhaseFn | None = None,
+    language: str | None = None,
 ) -> Transcript:
     """Call Groq's Whisper API and return a ``Transcript``.
 
     The Groq API key is read from the ``GROQ_API_KEY`` setting. If the key is
     missing a ``RuntimeError`` is raised – this complies with the project's
     safe‑local mode.
+
+    ``language`` (else the ``WHISPER_LANGUAGE`` setting) pins Whisper's language
+    instead of letting it auto-detect. Auto-detection flips on content that quotes
+    another language -- an English sentence about Spanish loanwords comes back
+    entirely in Spanish -- which is a correct transcript scored as a total miss.
     """
     from .config import get_settings
     settings = get_settings()
@@ -51,9 +57,13 @@ def transcribe_file(
 
     files = {"file": (os.path.basename(path), audio_bytes, "application/octet-stream")}
     data = {
-        "model": getattr(settings, "whisper_model", "small"),  # Uses WHISPER_MODEL env var (must be a valid Groq model ID)
+        # `model` when the caller passed one, else WHISPER_MODEL (a valid Groq model ID).
+        "model": model or getattr(settings, "whisper_model", "small"),
         "response_format": "verbose_json",
     }
+    lang = language if language is not None else getattr(settings, "whisper_language", "")
+    if lang and lang.lower() != "auto":
+        data["language"] = lang
     if glossary:
         data["prompt"] = ", ".join(glossary)
 
