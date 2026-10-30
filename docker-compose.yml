@@ -3,6 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: runtime   # without this Docker builds the last stage (test) and runs pytest
     image: lectureflow:latest
     container_name: lectureflow_backend
     ports:

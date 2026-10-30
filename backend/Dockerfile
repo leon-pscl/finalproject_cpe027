@@ -55,7 +55,9 @@ FROM builder AS test
 COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
 
-# Copy test suite
+# Copy application code and test suite
+COPY app ./app
+COPY dsp.py ./dsp.py
 COPY tests ./tests
 
 # Default command runs the test suite; can be overridden in Docker‑Compose
