@@ -28,6 +28,7 @@ def test_transcribe_success(monkeypatch):
 
     # Mock the HTTP response from Groq
     fake_response = mock.Mock()
+    fake_response.status_code = 200
     fake_response.raise_for_status.return_value = None
     fake_response.json.return_value = {
         "language": "en",
@@ -37,7 +38,8 @@ def test_transcribe_success(monkeypatch):
             {"id": "s2", "start": 2.5, "end": 5.0, "text": "test", "avg_logprob": -0.2},
         ],
     }
-    monkeypatch.setattr("requests.post", lambda *args, **kwargs: fake_response)
+    # The code posts with httpx; patching requests.post left the real Groq API being called.
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: fake_response)
 
     transcript = groq_asr.transcribe_file("dummy.wav")
     assert transcript.language == "en"

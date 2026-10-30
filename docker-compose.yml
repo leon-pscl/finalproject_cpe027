@@ -7,16 +7,45 @@ services:
     container_name: lectureflow_backend
     ports:
       - "8000:8000"
+    # Settings reads .env from the CWD, which is not baked into the image, so without this
+    # GROQ_API_KEY is empty in the container and every LLM call silently falls back.
+    env_file:
+      - .env
     environment:
       # Enable the background worker and use in-memory repo for quick dev/testing
       WORKER_ENABLED: "true"
       REPOSITORY_BACKEND: memory
       LOCAL_STORAGE_ROOT: /data/storage
-      PROCESSING_MODE: mock   # set to "real" if you installed ffmpeg & want full DSP
+      PROCESSING_MODE: real   # ffmpeg is installed in the image, so the full DSP path works
+      ASR_PROVIDER: groq      # real ASR via Groq Whisper; asr.transcribe_file dispatches on this
+      WHISPER_MODEL: whisper-large-v3   # a Groq model ID, not a faster-whisper size name
+      ENHANCE_DEFAULT: "true" # DSP enhancement on the /api/transcriptions path the frontend uses
+      DSP_ENABLED: "true"     # DSP in the lecture-pipeline worker (media.py filter graph)
       MAX_UPLOAD_MB: "512"
       PYTHONPATH: /app
     volumes:
       - ./storage:/data/storage   # host folder persists uploaded media across restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+  # The nginx gateway that serves the built frontend and proxies /api/ to the backend.
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend-runtime
+    image: lectureflow-frontend:latest
+    container_name: lectureflow_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy   # otherwise the first requests through the gateway 502
     restart: unless-stopped
 
 # Optional helper for running tests inside a temporary container

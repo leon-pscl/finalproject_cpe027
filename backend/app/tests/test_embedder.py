@@ -42,7 +42,7 @@ def make_chunks(texts: List[str]) -> List[Chunk]:
 
 def test_mock_embedder(monkeypatch):
     settings = type("Dummy", (), {"embed_provider": "mock", "openai_api_key": None})()
-    monkeypatch.setattr("app.config.get_settings", lambda: settings)
+    monkeypatch.setattr("app.embedder.get_settings", lambda: settings)
     embedder = Embedder()
     chunks = make_chunks(["a", "b"])
     vectors = embedder.embed(chunks)
@@ -51,9 +51,9 @@ def test_mock_embedder(monkeypatch):
 
 def test_openai_embedder(monkeypatch):
     settings = type("Dummy", (), {"embed_provider": "openai", "openai_api_key": "dummy-key"})()
-    monkeypatch.setattr("app.config.get_settings", lambda: settings)
+    monkeypatch.setattr("app.embedder.get_settings", lambda: settings)
     # Mock the HTTP request
-    fake_response = type("Resp", (), {"status_code": 200, "json": lambda self: {"data": [{"embedding": [0.1, 0.2, 0.3]}, {"embedding": [0.4, 0.5, 0.6]}], "model": "text-embedding-ada-002"}})()
+    fake_response = type("Resp", (), {"status_code": 200, "raise_for_status": lambda self: None, "json": lambda self: {"data": [{"embedding": [0.1, 0.2, 0.3]}, {"embedding": [0.4, 0.5, 0.6]}], "model": "text-embedding-ada-002"}})()
     monkeypatch.setattr("requests.post", lambda *args, **kwargs: fake_response)
     embedder = Embedder()
     chunks = make_chunks(["first", "second"])
@@ -66,7 +66,7 @@ def test_openai_embedder(monkeypatch):
 
 def test_missing_api_key(monkeypatch):
     settings = type("Dummy", (), {"embed_provider": "openai", "openai_api_key": None})()
-    monkeypatch.setattr("app.config.get_settings", lambda: settings)
+    monkeypatch.setattr("app.embedder.get_settings", lambda: settings)
     embedder = Embedder()
     with pytest.raises(RuntimeError, match="OpenAI API key not configured"):
         embedder.embed(make_chunks(["test"]))
