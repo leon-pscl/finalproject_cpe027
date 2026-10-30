@@ -15,10 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ build-essential ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Install runtime Python dependencies (including Torch CPU wheel)
+# Install runtime Python dependencies. Torch comes first, from the CPU-only index: the
+# PyPI wheel is the CUDA build (~2.5GB with its nvidia deps) and nothing here needs a GPU.
+# Installing it after requirements.txt is a no-op, as sentence-transformers already pulled it in.
 COPY requirements.txt ./
-RUN pip install -r requirements.txt --verbose \
-    && pip install --extra-index-url https://download.pytorch.org/whl/cpu "torch>=2.0,<3"
+RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.0,<3" \
+    && pip install -r requirements.txt
 
 # --------------------------------------------
 # Runtime stage – contains only the runtime dependencies (no compilers)
