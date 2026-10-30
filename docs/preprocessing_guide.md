@@ -37,6 +37,6 @@ Since LoquaciousSet uses spelled-out numbers, all datasets will follow this:
 ### 3. Special Tags
 - **Non-Speech Tags**: Tags like [applause], [noise], or (laughs) are removed.
 
-## Version History
+- **Silence stripping**: see `docs/silence_stripping.md` for the algorithm and offset‑map handling.
 - 2026-10-29: Initial scaffolding created.
 - 2026-10-29: Normalization rules defined (Case, Punctuation, Numerals).

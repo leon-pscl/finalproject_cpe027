@@ -30,7 +30,7 @@ from app.dependencies import (
 from app.repositories import LectureRepository
 from app.storage import StorageAdapter
 from app.adapters import adapter_bundle
-from app.answer_generator import OpenAIAnswerGenerator
+from app.answer_generator import GroqAnswerGenerator
 
 router = APIRouter(tags=["qa"])
 import uuid
@@ -101,9 +101,9 @@ def answer_question(
     all_chunks = retriever.search(user.uid, lecture_id, "v1", request.question)
     top_chunks = all_chunks[: request.top_k]
 
-    # Try to generate an answer via OpenAI.
+    # Try to generate an answer via Groq.
     try:
-        answer_gen = OpenAIAnswerGenerator()
+        answer_gen = GroqAnswerGenerator()
         answer_text = answer_gen.generate(request.question, top_chunks)
         status = AnswerStatus.ANSWERED
     except Exception as exc:

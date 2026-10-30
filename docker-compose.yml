@@ -24,6 +24,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: test
     image: lectureflow:test
     container_name: lectureflow_test
     command: ["pytest", "tests"]

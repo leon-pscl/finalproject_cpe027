@@ -50,7 +50,7 @@ def check_groq_llm_key():
     os.environ["PROCESSING_MODE"] = "real"
     try:
         payload = {
-            "model": "openai/gpt-oss-20b",
+            "model": "groq/gpt-oss-20b",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is 2+2?"}
