@@ -8,12 +8,11 @@ import json
 import math
 import os
 from typing import Callable, List
-import httpx
-import time
 
 # Note: get_settings is imported inside the function to allow monkey‑patching in tests.
 
 from .asr import Transcript, Segment, confidence_from_logprob
+from .groq_http import post_with_retry
 
 ProgressFn = Callable[[float], None]
 SegmentFn = Callable[[Segment], None]
@@ -63,36 +62,13 @@ def transcribe_file(
     if on_phase:
         on_phase("calling_groq")
 
-    max_retries = 5
-    backoff = 2  # seconds
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = httpx.post(
-                "https://api.groq.com/openai/v1/audio/transcriptions",
-                headers=headers,
-                data=data,
-                files=files,
-                timeout=60.0,
-            )
-        except httpx.RequestError as exc:
-            # Network‑level error (e.g., connection reset). Retry a few times.
-            if attempt == max_retries:
-                raise
-            print(f"⚠️  Request error – {exc.__class__.__name__}: {exc} – retry {attempt}/{max_retries}")
-            time.sleep(backoff)
-            backoff *= 2
-            continue
-        if response.status_code == 429:
-            wait = int(response.headers.get("Retry-After", backoff))
-            print(f"⚠️ 429 Rate limit hit – sleeping {wait}s (attempt {attempt}/{max_retries})")
-            time.sleep(wait)
-            backoff *= 2
-            continue
-        response.raise_for_status()
-        break
-    else:
-        # exhausted retries
-        response.raise_for_status()
+    response = post_with_retry(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        headers=headers,
+        data=data,
+        files=files,
+        timeout=60.0,
+    )
     result = response.json()
 
     # Expected result format (simplified):

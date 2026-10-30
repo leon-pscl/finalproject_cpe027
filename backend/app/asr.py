@@ -48,6 +48,7 @@ class Transcript:
     duration: float
     segments: list[Segment] = field(default_factory=list)
     offset_map: list[tuple[float, float, float]] | None = None  # (orig_start, orig_end, stripped_start)
+    dsp: dict | None = None  # only asr.transcribe_file fills this; other providers leave it None
 
 
 ProgressFn = Callable[[float], None]
@@ -179,35 +180,8 @@ def transcribe_file(
         total_audio_seconds_sent = 0.0
         all_segments: list[Segment] = []
 
-        def _transcribe_with_backoff(tmp_path: str) -> Transcript:
-            attempt = 0
-            max_attempts = 5
-            while True:
-                try:
-                    return provider_transcribe(
-                        tmp_path,
-                        on_progress=on_progress,
-                        on_segment=on_segment,
-                        glossary=glossary,
-                        model=model,
-                        enhance=False,
-                        reverb_weight=None,
-                        on_phase=on_phase,
-                    )
-                except httpx.HTTPStatusError as exc:
-                    if exc.response.status_code == 429:
-                        attempt += 1
-                        if attempt > max_attempts:
-                            raise
-                        retry_after = exc.response.headers.get("retry-after")
-                        wait = float(retry_after) if retry_after else (2 ** attempt)
-                        wait = min(wait, 30)
-                        jitter = random.random()
-                        logger.info("Groq rate limited, retrying in %.2f s (attempt %d)", wait + jitter, attempt)
-                        time.sleep(wait + jitter)
-                        continue
-                    else:
-                        raise
+        # 429 retry/backoff lives in groq_http.post_with_retry; a second layer here would
+        # multiply the attempts (5 x 5) and stall a single chunk for minutes.
 
         # Process audio in overlapping chunks
         start_idx = 0
@@ -219,8 +193,16 @@ def transcribe_file(
             os.close(fd)
             dsp.write_wav(tmp_path, chunk)
 
-            # Transcribe this chunk with backoff
-            chunk_transcript = _transcribe_with_backoff(tmp_path)
+            chunk_transcript = provider_transcribe(
+                tmp_path,
+                on_progress=on_progress,
+                on_segment=on_segment,
+                glossary=glossary,
+                model=model,
+                enhance=False,
+                reverb_weight=None,
+                on_phase=on_phase,
+            )
 
             # Adjust timestamps: each segment start/end is relative to the chunk's position in the stripped audio.
             chunk_start_stripped = start_idx / sr
