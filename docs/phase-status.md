@@ -1,5 +1,19 @@
 # Phase Status
 
+## Job Stages (enum `JobStage`)
+- `queued` – job created, awaiting processing.
+- `validating` – input validation performed.
+- `extracting` – metadata extraction from uploaded media.
+- `preprocessing` – DSP enhancement / basic processing.
+- `enhancing` – optional DSP enhancement step (now explicitly represented).
+- `rate_limited` – provider responded with 429; back‑off in progress.
+- `retrying` – retry attempt after rate limit or transient error.
+- `indexing` – chunking/embedding stage (future work).
+- `generating_notes` – notes creation from transcript (future work).
+- `completed` – successful end‑to‑end processing.
+- `failed` – unrecoverable error.
+- `cancelled` – job was cancelled by user.
+
 ## Current position
 - Branch: `iteration_pascual` (local only — `origin/iteration_pascual` is still at `fe0598f`, so nothing has been pushed this pass; the merge repair, the style pass, the worker and this doc update are all local).
 - Promotion path: `iteration_pascual` -> `iteration1-merged` -> `main`.

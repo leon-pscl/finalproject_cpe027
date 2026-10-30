@@ -10,6 +10,26 @@ from dataclasses import dataclass, field
 from . import dsp
 from .config import get_settings
 
+def _map_timestamp(t: float, offset_map: list[tuple[float, float, float]]) -> float:
+    """Map a timestamp in the stripped audio back to the original timeline.
+    ``offset_map`` is a list of ``(orig_start, orig_end, stripped_start)`` tuples.
+    """
+    for orig_start, orig_end, stripped_start in offset_map:
+        seg_len = orig_end - orig_start
+        if stripped_start <= t < stripped_start + seg_len:
+            return orig_start + (t - stripped_start)
+    # If not found, approximate by extending the last segment
+    if offset_map:
+        last_orig_start, last_orig_end, last_stripped_start = offset_map[-1]
+        last_len = last_orig_end - last_orig_start
+        if t >= last_stripped_start:
+            return last_orig_end + (t - (last_stripped_start + last_len))
+    return t
+import time
+import random
+import numpy as np
+import httpx
+
 NO_SPEECH_DROP = 0.8  # drop segments the model is very sure are not speech
 
 
@@ -27,7 +47,7 @@ class Transcript:
     language: str
     duration: float
     segments: list[Segment] = field(default_factory=list)
-    dsp: dict | None = None  # enhancement report (None when enhancement was off)
+    offset_map: list[tuple[float, float, float]] | None = None  # (orig_start, orig_end, stripped_start)
 
 
 ProgressFn = Callable[[float], None]
@@ -89,12 +109,40 @@ def transcribe_file(
         from .groq_asr import transcribe_file as provider_transcribe
         import tempfile, os
         audio_path = path
+        # Ensure audio is PCM‑16 WAV for Groq (fallback when no enhancement)
+        if audio_path == path:
+            fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+            os.close(fd)
+            dsp.write_wav(tmp_path, dsp.load_audio(path))
+            audio_path = tmp_path
         dsp_info: dict | None = None
+        # Apply optional DSP enhancement, then strip silence and rewrite temp wav
+        audio_np = dsp.load_audio(audio_path)
         if s.enhance_default if enhance is None else enhance:
             if on_phase:
                 on_phase("enhancing")
             try:
                 enhanced, report = dsp.enhance(
+                    audio_np,
+                    rt60=s.dsp_rt60,
+                    floor_db=s.dsp_floor_db,
+                    reverb_weight=s.dsp_reverb_weight if reverb_weight is None else reverb_weight,
+                    noise_bias=s.dsp_noise_bias,
+                    on_progress=(lambda p: on_progress(0.1 * p)) if on_progress else None,
+                )
+                audio_np = enhanced
+                dsp_info = report.as_dict()
+            except Exception as exc:  # noqa: BLE001
+                dsp_info = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
+        stripped_audio, offset_map = dsp.strip_silence(audio_np)
+        fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        dsp.write_wav(tmp_path, stripped_audio)
+        audio_path = tmp_path
+        # (enhancement already applied above)
+        # (Groq enhancement block removed)
+        """
+
                     dsp.load_audio(path),
                     rt60=s.dsp_rt60,
                     floor_db=s.dsp_floor_db,
@@ -110,21 +158,100 @@ def transcribe_file(
                 dsp_info = report.as_dict()
             except Exception as exc:  # noqa: BLE001
                 dsp_info = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
-        if on_phase:
-            on_phase("transcribing")
-        transcript = provider_transcribe(
-            audio_path,
-            on_progress=on_progress,
-            on_segment=on_segment,
-            glossary=glossary,
-            model=model,
-            enhance=enhance,
-            reverb_weight=reverb_weight,
-            on_phase=on_phase,
+                # Ensure audio is PCM‑16 WAV for Groq (fallback when no enhancement)
+                if audio_path == path:
+                    fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+                    os.close(fd)
+                    dsp.write_wav(tmp_path, dsp.load_audio(path))
+                    audio_path = tmp_path
+
+
+        """
+        # Chunk and transcribe using Groq, respecting size limits and rate limits
+        # Configuration: chunk size (seconds) and overlap (seconds) from Settings
+        chunk_seconds = s.chunk_seconds
+        overlap_seconds = s.chunk_overlap_seconds
+        sr = dsp.SR
+        chunk_samples = int(chunk_seconds * sr)
+        overlap_samples = int(overlap_seconds * sr)
+
+        total_requests = 0
+        total_audio_seconds_sent = 0.0
+        all_segments: list[Segment] = []
+
+        def _transcribe_with_backoff(tmp_path: str) -> Transcript:
+            attempt = 0
+            max_attempts = 5
+            while True:
+                try:
+                    return provider_transcribe(
+                        tmp_path,
+                        on_progress=on_progress,
+                        on_segment=on_segment,
+                        glossary=glossary,
+                        model=model,
+                        enhance=False,
+                        reverb_weight=None,
+                        on_phase=on_phase,
+                    )
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 429:
+                        attempt += 1
+                        if attempt > max_attempts:
+                            raise
+                        retry_after = exc.response.headers.get("retry-after")
+                        wait = float(retry_after) if retry_after else (2 ** attempt)
+                        wait = min(wait, 30)
+                        jitter = random.random()
+                        logger.info("Groq rate limited, retrying in %.2f s (attempt %d)", wait + jitter, attempt)
+                        time.sleep(wait + jitter)
+                        continue
+                    else:
+                        raise
+
+        # Process audio in overlapping chunks
+        start_idx = 0
+        audio_len = len(stripped_audio)
+        while start_idx < audio_len:
+            end_idx = min(audio_len, start_idx + chunk_samples)
+            chunk = stripped_audio[start_idx:end_idx]
+            fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+            os.close(fd)
+            dsp.write_wav(tmp_path, chunk)
+
+            # Transcribe this chunk with backoff
+            chunk_transcript = _transcribe_with_backoff(tmp_path)
+
+            # Adjust timestamps: each segment start/end is relative to the chunk's position in the stripped audio.
+            chunk_start_stripped = start_idx / sr
+            for seg in chunk_transcript.segments:
+                orig_start = _map_timestamp(seg.start + chunk_start_stripped, offset_map)
+                orig_end = _map_timestamp(seg.end + chunk_start_stripped, offset_map)
+                seg.start = round(orig_start, 2)
+                seg.end = round(orig_end, 2)
+                all_segments.append(seg)
+
+            total_requests += 1
+            total_audio_seconds_sent += len(chunk) / sr
+            os.remove(tmp_path)
+
+            # Advance start with overlap
+            start_idx = end_idx - overlap_samples if end_idx < audio_len else end_idx
+
+        # Build final transcript
+        transcript = Transcript(
+            language=chunk_transcript.language,
+            duration=len(stripped_audio) / sr,
+            segments=all_segments,
+            dsp=dsp_info,
+            offset_map=offset_map,
         )
-        # Attach DSP info to the result if any
-        transcript.dsp = dsp_info
-        # Clean up temporary file if we created one
+        logger.info(
+            "Groq ASR: %d requests, %.2f audio‑seconds sent",
+            total_requests,
+            total_audio_seconds_sent,
+        )
+        # Clean up temporary stripped‑audio file
         if audio_path != path:
             try:
                 os.remove(audio_path)
@@ -167,7 +294,7 @@ def transcribe_file(
         initial_prompt=", ".join(glossary) if glossary else None,
     )
     duration = float(info.duration or 0.0)
-    result = Transcript(language=info.language, duration=duration, dsp=dsp_info)
+    result = Transcript(language=info.language, duration=duration)
     for raw in stream:
         text = raw.text.strip()
         if not text or (raw.no_speech_prob or 0.0) > NO_SPEECH_DROP:
@@ -184,5 +311,6 @@ def transcribe_file(
             on_segment(seg)
         if on_progress and duration > 0:
             on_progress(base + (1 - base) * min(0.99, float(raw.end) / duration))
+    result.dsp = dsp_info
     logger.info("ASR transcription completed – %d segments", len(result.segments))
     return result

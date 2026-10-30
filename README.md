@@ -58,6 +58,7 @@ python eval/cli.py   # generates results in eval/results/
 
 67
 LectureFlow is a lecture transcription prototype organized as separate frontend and backend applications:
+<<<<<<< HEAD
 
 - `ngrok` can expose the local dev server publicly for demos. Install with `npm i -g ngrok` and run `ngrok http 8000` (or the port your backend runs on). The generated URL can be shared for the final demo.
 - `backend/` — a Python/FastAPI API scaffold, independently runnable and containerized.
@@ -132,6 +133,150 @@ Backend tests: `cd backend && pip install -r requirements-dev.txt && pytest` (st
 
 ### How the DSP Engine Works
 
+=======
+=======
+ 
+ ## What this project is
+ 
+ LectureFlow is a lecture transcription prototype that records, transcribes, and optionally enhances audio lectures.
+ 
+ ## Program flow
+ 
+ 1. **Upload** – Frontend sends audio via `POST /api/transcriptions` (multipart file) or `POST /api/lectures` (lecture metadata) to the FastAPI backend.
+ 2. **Optional DSP** – If `ENHANCE_AUDIO=true`, the backend runs the DSP engine (`backend/app/dsp.py`) to clean up the recording before transcription. This stage reduces environmental noise and reverberation to improve ASR accuracy. (See [DSP speech enhancement](#dsp-speech-enhancement-off-by-default) for details).
+ 3. **ASR** – The (local) Whisper model is invoked through the `faster-whisper` library (`WHISPER_MODEL` env var) to produce a transcript.
+ 4. **Storage & Retrieval** – Transcripts are stored and served via `GET /api/transcriptions/{id}` and `GET /api/lectures/{id}`. Embeddings are created with MiniLM‑L6‑v2 (`sentence‑transformers`) and indexed in a FAISS‑CPU vector store.
+ 5. **RAG Generation** – The `/api/rag` endpoint (or `GET /api/answers`) calls the OpenAI `gpt‑4o‑mini` model with a grounding prompt, falling back to pure passage retrieval when the API key is missing.
+ 6. **Health & Utils** – `GET /api/health` reports service status; other utility endpoints manage uploads, deletion, and worker status.
+ 
+ 
+ ## Libraries / Dependencies
+ 
+ <!-- AUTO-DEP-TABLES START -->
+ *This section is generated automatically from `frontend/package.json`, `backend/requirements.txt`, and `eval/requirements.txt` by the helper script `scripts/update_deps_readme.py`.*
+ <!-- AUTO-DEP-TABLES END -->
+ 
+ 
+ ## How to run
+ 
+ ```sh
+ docker compose up --build -d   # start both services
+ # Run ngrok to expose the frontend port (default 8080):
+ #   ngrok http 8080   # then use the generated public URL for remote demo
+ ```
+ Or for local development:
+ 
+ ```sh
+ # frontend
+ cd frontend && npm ci && npm run dev
+ # backend
+ cd backend && python -m venv .venv && .\.venv\Scripts\Activate.ps1 && pip install -r requirements.txt && uvicorn app.main:app --reload
+ ```
+ 
+ ## How to get evaluation metrics values
+ 
+ Run the evaluation CLI:
+ 
+ ```sh
+ python eval/cli.py   # generates results in eval/results/
+ ```
+ 
+ ## Datasets used (and purpose)
+ 
+ - **M3AV** – Multimodal Academic Lecture Dataset (audio‑visual, transcripts). Project page: https://jack-zc8.github.io/M3AV-dataset-page/
+ - **ACL 60/60** – IWSLT 2023 multilingual evaluation talks. Hugging Face: https://huggingface.co/datasets/ymoslem/acl-6060
+ - **Loquacious** – Short, diverse English speech clips for robustness testing. Interspeech 2025 paper (PDF): https://www.isca-archive.org/interspeech_2025/parcollet25_interspeech.pdf
+ - **DEMAND** – Environmental noise recordings (CC BY‑SA 3.0). Used as the noise bank to generate synthetic noisy samples; each environment name (e.g., `DKITCHEN`, `OOFFICE`) populates the `environment` column in the benchmark manifest. If the harness is invoked with an explicit `envs` list, the selection is deliberate; otherwise environments are randomly sampled from the full DEMAND set. Zenodo: https://zenodo.org/record/1227120
+ - **MUSAN** – Music, speech and noise corpus for noise addition. OpenSLR: https://www.openslr.org/17/
+ 
+ 67
+ LectureFlow is a lecture transcription prototype organized as separate frontend and backend applications:
+ 
+ - `ngrok` can expose the local dev server publicly for demos. Install with `npm i -g ngrok` and run `ngrok http 8000` (or the port your backend runs on). The generated URL can be shared for the final demo.
+ - `backend/` — a Python/FastAPI API scaffold, independently runnable and containerized.
+ 
+ ## Docker
+ 
+ Start both services:
+ 
+ ```sh
+ docker compose up --build -d
+ ```
+ 
+ Open `http://localhost:8080` on the host. On another device on the same network, open `http://<host-LAN-IP>:8080`. On Windows, find the host IPv4 address with `ipconfig`. The network must allow device-to-device connections, and the host firewall must allow inbound TCP on the selected port.
+ 
+ The frontend container serves the built app and proxies `/api/` requests to FastAPI. The API is available through the frontend at `http://localhost:8080/api/health`. The backend port is not published directly to the host.
+ 
+ Use another host port when 8080 is occupied:
+ 
+ ```powershell
+ $env:APP_PORT = "8090"
+ docker compose up --build -d
+ ```
+ 
+ Stop services with `docker compose down`.
+
+**Caching notes**:
+- The backend Dockerfile now **retains pip caches** (removed `--no-cache-dir`), so subsequent builds are faster when dependencies haven't changed.
+- Model files downloaded by Whisper are stored in a Docker **`model-cache` volume** (`/models`) and persisted across container restarts, avoiding repeated large downloads.
+- The `VOLUME /models` declaration in `backend/Dockerfile` ensures the cache survives `docker compose down`/`up` cycles.
+ 
+ ## Local development
+ 
+ Frontend:
+ 
+ ```powershell
+ cd frontend
+ npm ci
+ npm run dev
+ ```
+ 
+ Backend (in a separate terminal):
+ 
+ ```powershell
+ cd backend
+ python -m venv .venv
+ .\.venv\Scripts\Activate.ps1
+ pip install -r requirements.txt
+ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+ ```
+ 
+ Vite proxies `/api/` calls to the local backend at port 8000. FastAPI's interactive API documentation is available at `http://localhost:8000/docs`.
+ 
+ ## Speech recognition (real, pretrained)
+ 
+ The backend runs a pretrained Whisper model through [faster-whisper](https://github.com/SYSTRAN/faster-whisper). No training is involved. The model downloads automatically on the first transcription (internet needed once) and is cached in the `model-cache` Docker volume (or `MODEL_CACHE_DIR` locally).
+ 
+ | Variable | Default | Notes |
+ |---|---|---|
+ | `WHISPER_MODEL` | `small` | `tiny`/`base` faster, `medium`/`large-v3` more accurate (GPU advised) |
+ | `WHISPER_LANGUAGE` | `auto` | set `en` or `tl` to force a language |
+ | `WHISPER_COMPUTE_TYPE` | `int8` | use `float16` on GPU |
+ | `MAX_UPLOAD_MB` | `512` | |
+ 
+ ```sh
+ WHISPER_MODEL=base docker compose up --build -d     # PowerShell: $env:WHISPER_MODEL="base"
+ ```
+ 
+ API: `POST /api/transcriptions` (multipart `file`) -> job id; `GET /api/transcriptions/{id}` -> status, progress, segments; `DELETE` removes it. The server deletes the raw audio as soon as processing ends.
+ 
+ ### Groq ASR Chunking & Rate‑Limiting
+
+- **Chunk size** (`CHUNK_SECONDS`) and **overlap** (`CHUNK_OVERLAP_SECONDS`) can be configured via environment variables. Defaults are 30 s chunks with 5 s overlap.
+- The backend automatically splits long recordings into overlapping chunks, sends each to Groq respecting the provider’s file‑size limit, and merges timestamps using an offset map.
+- Exponential backoff with jitter handles `429 Too Many Requests` responses, respecting the `Retry‑After` header when present.
+- Progress updates (`on_progress`) now reflect the proportion of chunks processed, enabling the frontend to display accurate job progress.
+
+Recordings uploaded through `POST /api/lectures/...` are queued and processed by a worker inside the API process (media/DSP, then ASR, then `GET /api/lectures/{id}` reports `completed`). Set `WORKER_ENABLED=false` to disable it.
+ 
+ Backend tests: `cd backend && pip install -r requirements-dev.txt && pytest` (stub model; no download needed).
+ 
+ ## DSP speech enhancement (off by default)
+ 
+ `backend/app/dsp.py` implements a classical signal processing engine (no learned models) to improve speech quality before ASR. 
+ 
+ ### How the DSP Engine Works
+>>>>>>> refs/remotes/origin/main
 The pipeline processes audio in 90-second blocks to manage memory and track non-stationary noise:
 
 1. **Preprocessing**: DC offset removal and a 4th-order Butterworth high-pass filter (default 80 Hz) to remove low-frequency rumble.

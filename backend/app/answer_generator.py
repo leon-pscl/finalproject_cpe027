@@ -2,15 +2,19 @@ import os
 import httpx
 from typing import List
 
-class OpenAIAnswerGenerator:
-    """Simple wrapper around OpenAI's chat completion API (gpt‑4o‑mini).
+# Use the Settings loader to pull the Groq API key (ensures .env is read)
+from .config import get_settings
+
+class GroqAnswerGenerator:
+    """Simple wrapper around Groq's chat completion API (openai/gpt-oss-20b).
 
     The grounding prompt is hard‑coded according to the specification:
     * "Answer using only the provided context. If the context does not contain the answer, say you don't know."
     * Keep answers concise and cite the source chunk IDs.
     """
     def __init__(self) -> None:
-        self.api_key = os.getenv("GROQ_API_KEY")
+        # Pull the key from Settings (which loads .env via pydantic‑settings)
+        self.api_key = get_settings().groq_api_key
         if not self.api_key:
             raise RuntimeError("GROQ_API_KEY not set – LLM calls are unavailable")
         self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
