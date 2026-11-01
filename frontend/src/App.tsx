@@ -239,7 +239,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-300">New transcription</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300">New transcription</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Process a lecture</h1>
         </div>
       </header>
@@ -249,7 +249,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
           <div
             className={`rounded-2xl border-2 border-dashed p-5 transition ${
               isDragging
-                ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/20'
+                ? 'border-slate-500 bg-slate-50 dark:bg-slate-950/20'
                 : 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60'
             }`}
             onDragOver={(event) => {
@@ -265,7 +265,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
             }}
           >
             <div className="flex flex-col items-center justify-center gap-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
                 <Upload size={22} />
               </div>
               <div>
@@ -273,7 +273,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Accepted formats: WAV, MP3, M4A</p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-500 dark:bg-slate-700 dark:hover:bg-slate-600">
+                <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-500 dark:bg-slate-700 dark:hover:bg-slate-600">
                   <FolderOpen size={16} />
                   Browse files
                   <input
@@ -288,7 +288,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                   <button
                     type="button"
                     onClick={() => setForm((current) => ({ ...current, file: null }))}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Remove file
                   </button>
@@ -339,7 +339,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                 <div
-                  className={`h-full rounded-full transition-all ${uploadError ? 'bg-red-500' : 'bg-teal-600'}`}
+                  className={`h-full rounded-full transition-all ${uploadError ? 'bg-red-500' : 'bg-slate-600'}`}
                   style={{ width: `${Math.min(100, Math.max(0, uploadProgress))}%` }}
                 />
               </div>
@@ -354,7 +354,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 id="title"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 placeholder="Week 5: Sampling and reconstruction"
                 aria-invalid={Boolean(errors.title)}
               />
@@ -365,7 +365,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 id="subject"
                 value={form.subject}
                 onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 placeholder="Digital Signal Processing"
               />
             </Field>
@@ -374,7 +374,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 id="instructor"
                 value={form.instructor}
                 onChange={(event) => setForm((current) => ({ ...current, instructor: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 placeholder="Dr. Lewis"
               />
             </Field>
@@ -383,7 +383,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 id="language"
                 value={form.language}
                 onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option>English</option>
                 <option>Spanish</option>
@@ -399,7 +399,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                   value={form.apiToken}
                   autoComplete="off"
                   onChange={(event) => setForm((current) => ({ ...current, apiToken: event.target.value }))}
-                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   placeholder="Paste a short-lived backend bearer token"
                   aria-describedby="api-token-help"
                 />
@@ -430,7 +430,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
                 id="preset"
                 value={form.preset}
                 onChange={(event) => handlePresetChange(event.target.value as DspPreset)}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="automatic">Automatic</option>
                 <option value="quiet-room">Quiet room</option>
@@ -478,7 +478,7 @@ function NewTranscriptionPage({ updateLectures }: { updateLectures: Dispatch<Set
             <button
               type="submit"
               disabled={isSubmitDisabled}
-              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
             >
               <Sparkles size={16} />
               Start processing
@@ -498,7 +498,7 @@ function ToggleSetting({ label, checked, onChange }: { label: string; checked: b
         type="button"
         onClick={onChange}
         aria-label={label}
-        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${checked ? 'bg-teal-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${checked ? 'bg-slate-600' : 'bg-slate-300 dark:bg-slate-600'}`}
       >
         <span className={`inline-block h-5 w-5 rounded-full bg-white transition ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
       </button>
@@ -621,13 +621,13 @@ function ProcessingPage({
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-300">Processing</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300">Processing</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">{lecture.title}</h1>
         </div>
         <button
           type="button"
           onClick={() => setCancelled(true)}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           Cancel
         </button>
@@ -645,7 +645,7 @@ function ProcessingPage({
         </div>
 
         <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-          <div className="h-full rounded-full bg-teal-600 transition-all duration-500" style={{ width: `${progress}%` }} />
+          <div className="h-full rounded-full bg-slate-600 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
 
         <ol className="mt-6 space-y-3" aria-live="polite">
@@ -661,7 +661,7 @@ function ProcessingPage({
                     isFailed
                       ? 'bg-red-600 text-white'
                       : isCompleted
-                        ? 'bg-teal-600 text-white'
+                        ? 'bg-slate-600 text-white'
                         : isCurrent
                           ? 'bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900'
                           : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
@@ -713,7 +713,7 @@ function ProcessingPage({
                     processingDetails: { ...project.processingDetails, processingStatus: 'Retrying' },
                   }));
                 }}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500"
               >
                 Retry
               </button>
@@ -818,7 +818,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-300">Results workspace</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300">Results workspace</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">{lecture.title}</h1>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
               <span>{lecture.subject}</span>
@@ -871,7 +871,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                   <AudioLines size={16} />
                   Audio preview
                 </div>
-                <button type="button" className="text-xs text-teal-700 dark:text-teal-300">{showConfidence ? 'Visible' : 'Hidden'}</button>
+                <button type="button" className="text-xs text-slate-700 dark:text-slate-300">{showConfidence ? 'Visible' : 'Hidden'}</button>
               </div>
               <div className="mt-3 rounded-xl bg-slate-900 p-3 text-slate-100 dark:bg-slate-950">
                 <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-300">
@@ -879,7 +879,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                   <span>{lecture.duration}s</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-700">
-                  <div className="h-full w-2/5 rounded-full bg-teal-400" />
+                  <div className="h-full w-2/5 rounded-full bg-slate-400" />
                 </div>
               </div>
             </div>
@@ -932,7 +932,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                       id="transcript-search"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       placeholder="Search transcript"
                     />
                   </div>
@@ -956,7 +956,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                     <div
                       key={segment.id}
                       id={`segment-${segment.id}`}
-                      className={`rounded-2xl border p-4 transition ${selectedSegmentId === segment.id ? 'border-teal-500 bg-teal-50 dark:border-teal-700 dark:bg-teal-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60'}`}
+                      className={`rounded-2xl border p-4 transition ${selectedSegmentId === segment.id ? 'border-slate-500 bg-slate-50 dark:border-slate-700 dark:bg-slate-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60'}`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <button
@@ -1027,7 +1027,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Generated notes</h2>
                 <button
                   type="button"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500"
                 >
                   <Sparkles size={16} />
                   Regenerate notes
@@ -1048,7 +1048,7 @@ function ResultsPage({ lectures, updateLecture }: { lectures: LectureProject[]; 
                           key={ref}
                           type="button"
                           onClick={() => handleSourceReference(note.references)}
-                          className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/30 dark:text-teal-200"
+                          className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-200"
                         >
                           {ref}
                         </button>
@@ -1111,7 +1111,7 @@ function RecentLecturesPage({ lectures, setLectures }: { lectures: LectureProjec
     <div className="space-y-6">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-300">Recent lectures</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300">Recent lectures</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">Project history</h1>
         </div>
       </header>
@@ -1139,7 +1139,7 @@ function RecentLecturesPage({ lectures, setLectures }: { lectures: LectureProjec
                   <button
                     type="button"
                     onClick={() => navigate(`/results/${lecture.id}`)}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500"
                   >
                     Open result
                   </button>
@@ -1147,7 +1147,7 @@ function RecentLecturesPage({ lectures, setLectures }: { lectures: LectureProjec
                   <button
                     type="button"
                     onClick={() => navigate(`/processing/${lecture.id}`)}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500"
                   >
                     Resume processing
                   </button>
@@ -1155,7 +1155,7 @@ function RecentLecturesPage({ lectures, setLectures }: { lectures: LectureProjec
                   <button
                     type="button"
                     onClick={() => navigate(`/processing/${lecture.id}`)}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500"
                   >
                     Retry
                   </button>

@@ -16,7 +16,7 @@ function PlayerCard() {
   }
 
   return (<>
-    <div className="rounded-3xl bg-accent/70 px-4 py-4 text-xs leading-5">
+    <div className="rounded-3xl bg-slate-200/70 px-4 py-4 text-xs leading-5">
       <p className="break-all">Audio Source: {fileName}</p>
       <p className="flex items-center gap-1.5">
         Status:
@@ -41,7 +41,7 @@ function PlayerCard() {
       </div>
     </div>
     {/* DSP‑enhanced player */}
-    <div className="rounded-3xl bg-accent/70 px-4 py-4 text-xs leading-5 mt-4">
+    <div className="rounded-3xl bg-slate-200/70 px-4 py-4 text-xs leading-5 mt-4">
       <p className="break-all">Processed Audio: {fileName}</p>
       <p className="flex items-center gap-1.5">
         Status:
@@ -85,7 +85,7 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
   const tabClass = (active: boolean, side: 'l' | 'r') =>
     `h-8 px-5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
       side === 'l' ? 'rounded-l-full' : 'rounded-r-full'
-    } ${active ? 'bg-accent' : 'bg-paper'}`;
+    } ${active ? 'bg-slate-200' : 'bg-paper'}`;
 
   const tabButton = (id: Tab, label: string, side: 'l' | 'r') => (
     <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={tabClass(tab === id, side)}>

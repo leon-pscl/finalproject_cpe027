@@ -38,7 +38,7 @@ function DropZone() {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={`flex h-56 cursor-pointer items-center justify-center border border-ink text-sm text-neutral-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
-            dragging ? 'bg-accent' : 'bg-paper'
+            dragging ? 'bg-slate-200' : 'bg-paper'
           }`}
         >
           drag recording here
@@ -155,7 +155,7 @@ function TranscriptionReady() {
                 aria-label={`Jump to ${formatTimestamp(segment.start)}`}
                 aria-current={active ? 'true' : undefined}
                 className={`col-span-3 grid grid-cols-subgrid items-center py-2 text-left hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
-                  active ? 'bg-accent' : ''
+                  active ? 'bg-slate-200' : ''
                 }`}
               >
                 <span className="flex flex-col items-center font-mono text-sm">

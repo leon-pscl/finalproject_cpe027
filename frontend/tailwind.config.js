@@ -10,8 +10,8 @@ export default {
       },
       colors: {
         paper: '#fafafa',
-        ink: '#000000',
-        accent: '#e4dcf0',
+        ink: '#0f0f0f',
+        gray: '#959596',
       },
     },
   },

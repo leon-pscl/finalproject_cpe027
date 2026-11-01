@@ -40,7 +40,7 @@ export default function HomePage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Academic productivity</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">Academic productivity</p>
           <h1 className="text-3xl font-semibold tracking-tight">LectureFlow</h1>
           <p className="mt-2 text-slate-600">Turn recorded lectures into clean transcripts, traceable notes, and study-ready summaries.</p>
         </div>
@@ -50,7 +50,7 @@ export default function HomePage() {
             newNote();
             navigate('/new-transcription');
           }}
-          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-3 text-sm font-medium text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-600 px-5 py-3 text-sm font-medium text-white hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
         >
           <Plus size={18} aria-hidden="true" /> New note
         </button>
@@ -59,7 +59,7 @@ export default function HomePage() {
       <section aria-label="Your activity" className="grid gap-4 sm:grid-cols-3">
         {stats.map(({ label, value, icon: Icon }) => (
           <div key={label} className={`${card} flex items-center gap-4`}>
-            <Icon size={22} className="text-teal-700" aria-hidden="true" />
+            <Icon size={22} className="text-slate-700" aria-hidden="true" />
             <div>
               <p className="text-2xl font-semibold leading-none">{value}</p>
               <p className="mt-1 text-sm text-slate-500">{label}</p>
@@ -83,7 +83,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => open(chat.id)}
-                  className="flex h-full w-full flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="flex h-full w-full flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="line-clamp-2 font-semibold">{chat.title}</span>
@@ -109,7 +109,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => open(question.chatId)}
-                  className="flex w-full items-baseline justify-between gap-4 py-2.5 text-left text-sm hover:text-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="flex w-full items-baseline justify-between gap-4 py-2.5 text-left text-sm hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
                 >
                   <span className="truncate">{question.text}</span>
                   <span className="shrink-0 text-xs text-slate-500">{question.chatTitle}</span>

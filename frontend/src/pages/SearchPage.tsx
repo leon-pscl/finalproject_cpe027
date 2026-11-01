@@ -54,7 +54,7 @@ export default function SearchPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Search</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">Search</p>
         <h1 className="mt-1 text-3xl font-semibold">Search your lectures</h1>
         <p className="mt-1 text-sm text-slate-600">Looks through recording names, transcripts, and your chats.</p>
       </header>
@@ -71,7 +71,7 @@ export default function SearchPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Try “noise reduction”"
-          className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-teal-500"
+          className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-500"
         />
       </div>
 
@@ -93,7 +93,7 @@ export default function SearchPage() {
                   selectChat(result.chatId);
                   navigate('/new-transcription');
                 }}
-                className="font-semibold text-teal-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                className="font-semibold text-slate-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 {result.title}
               </button>

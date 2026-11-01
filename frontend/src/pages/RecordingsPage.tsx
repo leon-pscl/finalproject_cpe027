@@ -16,7 +16,7 @@ export default function RecordingsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Recordings</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">Recordings</p>
         <h1 className="mt-1 text-3xl font-semibold">Your recordings</h1>
         <p className="mt-1 text-sm text-slate-600">Each recording is saved with its transcript and chat. Deleting one removes both.</p>
       </header>
@@ -31,7 +31,7 @@ export default function RecordingsPage() {
               newNote();
               navigate('/new-transcription');
             }}
-            className="mt-3 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="mt-3 rounded-xl bg-slate-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             Upload your first recording
           </button>
@@ -56,7 +56,7 @@ export default function RecordingsPage() {
                     selectChat(chat.id);
                     navigate('/new-transcription');
                   }}
-                  className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="rounded-xl bg-slate-600 px-4 py-2 text-sm font-medium text-white hover:bg-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
                   Open
                 </button>
@@ -72,7 +72,7 @@ export default function RecordingsPage() {
                     >
                       Confirm delete
                     </button>
-                    <button type="button" onClick={() => setConfirmId(null)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <button type="button" onClick={() => setConfirmId(null)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500">
                       Cancel
                     </button>
                   </>
@@ -80,7 +80,7 @@ export default function RecordingsPage() {
                   <button
                     type="button"
                     onClick={() => setConfirmId(chat.id)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500"
                   >
                     <Trash2 size={15} aria-hidden="true" /> Delete
                   </button>
