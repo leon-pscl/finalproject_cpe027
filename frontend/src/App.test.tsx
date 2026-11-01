@@ -22,16 +22,15 @@ describe('LectureFlow app', () => {
     });
   });
 
-  it('renders the dashboard and primary CTA', () => {
+  it('renders the new transcription page', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByText('LectureFlow').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /new note/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Continue where you left off').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('drag recording here').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('WAV, MP3 or M4A').length).toBeGreaterThan(0);
   });
 
   it('disables processing until required upload details are supplied', async () => {

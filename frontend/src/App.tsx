@@ -100,7 +100,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<NewRecordingPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/recordings" element={<RecordingsPage />} />
             <Route path="/new-transcription" element={<NewRecordingPage />} />
