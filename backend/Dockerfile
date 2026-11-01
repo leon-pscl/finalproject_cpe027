@@ -1,4 +1,4 @@
-# Multi‑stage Dockerfile for the backend service
+# Multi-stage Dockerfile for the backend service
 # --------------------------------------------
 # Builder stage – installs compilers and all Python dependencies (including dev packages when needed)
 FROM python:3.12-slim AS builder
@@ -27,11 +27,12 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.0,<3"
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 
-# Copy the installed site‑packages and binaries from the builder stage
+# Copy the installed site-packages and binaries from the builder stage
 COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
 COPY --from=builder /usr/local/bin /usr/local/bin
 
@@ -39,19 +40,22 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy application code (the code does not need to be re‑installed)
+# Copy application code (the code does not need to be re-installed)
 COPY app ./app
 COPY dsp.py ./dsp.py
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=20s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # --------------------------------------------
-# Test stage – builds on the builder image and adds dev‑only dependencies and tests
+# Test stage – builds on the builder image and adds dev-only dependencies and tests
 FROM builder AS test
 
-# Install development‑only Python packages (pytest, ruff, etc.)
+# Install development-only Python packages (pytest, ruff, etc.)
 COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
 
@@ -60,5 +64,5 @@ COPY app ./app
 COPY dsp.py ./dsp.py
 COPY tests ./tests
 
-# Default command runs the test suite; can be overridden in Docker‑Compose
+# Default command runs the test suite; can be overridden in Docker-Compose
 CMD ["pytest"]
