@@ -228,8 +228,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               ),
             );
             // Update DSP URL for playback
-            if ((job.dsp as any)?.signed_url) {
-              setDspUrl((job.dsp as any).signed_url);
+            const signedUrl = job.dsp && typeof job.dsp === 'object' ? (job.dsp as { signed_url?: string }).signed_url : null;
+            if (signedUrl) {
+              setDspUrl(signedUrl);
             }
 
             setProgressById(({ [id]: _removed, ...rest }) => rest);

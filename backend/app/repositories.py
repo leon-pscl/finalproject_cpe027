@@ -1,11 +1,11 @@
-"""Firestore access layer.
+"""Local data access layer.
 
 Every function accepts and enforces ``owner_id``. All Firestore SDK calls are
 isolated here so Security Rules (which the Admin SDK bypasses) are mirrored
 by explicit ownership checks.
 
 Step 2 adds backend-portable repository implementations so safe local tests do
-not require Firebase.
+not require external services.
 """
 
 from __future__ import annotations
@@ -22,7 +22,10 @@ from app.contracts import (
     LectureMetadata,
     LectureStatus,
 )
-from app.firebase import get_firestore_client
+try:
+    from app.firebase import get_firestore_client  # type: ignore
+except Exception:
+    get_firestore_client = None
 
 
 def _now() -> datetime:

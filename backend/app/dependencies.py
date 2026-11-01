@@ -10,12 +10,11 @@ from app.auth import AuthError, VerifiedUser, verify_id_token
 from app.config import Settings, get_settings
 from app.contracts import ErrorCode
 from app.repositories import (
-    FirestoreLectureRepository,
     InMemoryLectureRepository,
     LectureRepository,
 )
 from app.services.lecture_service import LectureService, LectureServiceError
-from app.storage import FirebaseStorageAdapter, LocalStorageAdapter, StorageAdapter
+from app.storage import LocalStorageAdapter, StorageAdapter
 
 _repository_cache: dict[int, LectureRepository] = {}
 
@@ -27,18 +26,6 @@ def clear_repository_cache() -> None:
 def create_repository(settings: Settings | None = None) -> LectureRepository:
     if settings is None:
         settings = get_settings()
-    backend = getattr(settings, "repository_backend", "auto")
-    if backend == "memory":
-        return InMemoryLectureRepository()
-    if backend == "firestore":
-        return FirestoreLectureRepository()
-    # auto: prefer Firestore when Firebase configuration is present.
-    if (
-        settings.firebase_project_id
-        or settings.firestore_emulator_host
-        or settings.firebase_credentials_path
-    ):
-        return FirestoreLectureRepository()
     return InMemoryLectureRepository()
 
 
@@ -58,14 +45,6 @@ def get_repository(
 
 
 def create_storage(settings: Settings) -> StorageAdapter:
-    if (
-        settings.repository_backend == "firestore"
-        or settings.firebase_project_id
-        or settings.firestore_emulator_host
-        or settings.firebase_credentials_path
-        or settings.firebase_storage_bucket
-    ):
-        return FirebaseStorageAdapter(settings)
     return LocalStorageAdapter(settings)
 
 

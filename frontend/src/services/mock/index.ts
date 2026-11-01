@@ -194,70 +194,6 @@ export function createBlobFromText(content: string, type: string): Blob {
   return new Blob([content], { type });
 }
 
-export function generateTranscript(): TranscriptSegment[] {
-  return [
-    { id: 'seg-1', start: 12, speaker: 'Lecturer', text: 'Today we are discussing the relationship between signal quality and note reliability in lecture transcription systems.', confidence: 0.96 },
-    { id: 'seg-2', start: 26, speaker: 'Lecturer', text: 'The primary challenge is not just recognition accuracy, but the ability to preserve context and source attribution for each claim.', confidence: 0.82 },
-    { id: 'seg-3', start: 42, speaker: 'Lecturer', text: 'A robust pipeline begins with noise reduction, then speaker segmentation, and finally transcript cleaning before retrieval.', confidence: 0.68 },
-    { id: 'seg-4', start: 63, speaker: 'Lecturer', text: 'When the audio is clear, the retrieval stage can link lecture notes to exact moments in the recording with much greater precision.', confidence: 0.89 },
-    { id: 'seg-5', start: 89, speaker: 'Lecturer', text: 'This is important because students often need to verify a definition, example, or summary against the original discussion.', confidence: 0.75 },
-  ];
-}
-
-export function generateNotes(_transcript: TranscriptSegment[]): NoteEntry[] {
-  return [
-    {
-      id: 'note-overview',
-      section: 'Lecture overview',
-      title: 'Signal quality and traceability',
-      description: 'The lecture frames transcript reliability as a combination of clean audio inputs and verified evidence links. Quality controls should preserve not just wording, but also the exact source context for each statement.',
-      references: ['00:12', '00:42'],
-    },
-    {
-      id: 'note-topics',
-      section: 'Main topics',
-      title: 'DSP preprocessing and retrieval',
-      description: 'The discussion focuses on preprocessing, segmentation, and retrieval-based note generation as a sequence of steps that makes transcripts easier to inspect and reference.',
-      references: ['00:26', '00:63'],
-    },
-    {
-      id: 'note-concepts',
-      section: 'Key concepts',
-      title: 'Context-aware note generation',
-      description: 'A useful transcript system supports context-aware summaries that can point back to direct evidence, improving trust and usability for students.',
-      references: ['00:89'],
-    },
-    {
-      id: 'note-definitions',
-      section: 'Definitions',
-      title: 'Source traceability',
-      description: 'Source traceability means every generated note can be connected to the audio segment that supports it, making verification straightforward.',
-      references: ['00:42', '00:89'],
-    },
-    {
-      id: 'note-examples',
-      section: 'Important examples',
-      title: 'Lecture evidence mapping',
-      description: 'An example highlighted in class is the direct relationship between improved signal quality and cleaner retrieval of supporting claims in a course lecture.',
-      references: ['00:63'],
-    },
-    {
-      id: 'note-summary',
-      section: 'Summary',
-      title: 'Reliable transcripts require layered processing',
-      description: 'The session concludes that transcript quality, evidence mapping, and readable notes all rely on a deliberately structured workflow.',
-      references: ['00:12', '00:89'],
-    },
-    {
-      id: 'note-questions',
-      section: 'Review questions',
-      title: 'Reflection prompts',
-      description: '1. Which DSP steps most strongly affect transcript trust?\n2. How should a note system decide which evidence to cite?\n3. Why is direct source linkage important for student study?',
-      references: ['00:26', '00:42'],
-    },
-  ];
-}
-
 export function buildLectureProject(
   values: {
     title: string;
@@ -269,7 +205,7 @@ export function buildLectureProject(
     dspSettings: DspSettings;
   },
 ): LectureProject {
-  const transcript = generateTranscript();
+  const transcript: TranscriptSegment[] = [];
   const enabledOperations = Object.entries(values.dspSettings)
     .filter(([, enabled]) => enabled)
     .map(([key]) => key);
@@ -283,22 +219,22 @@ export function buildLectureProject(
     fileName: values.file.name,
     fileType: values.file.type || 'audio/mp3',
     fileSize: values.file.size,
-    duration: 126,
-    status: 'Completed',
-    workflowState: 'completed',
+    duration: 0,
+    status: 'Processing',
+    workflowState: 'validating',
     createdAt: new Date().toISOString(),
     dspPreset: values.dspPreset,
     dspSettings: values.dspSettings,
     transcript,
-    notes: generateNotes(transcript),
+    notes: [],
     processingDetails: {
       originalFile: values.file.name,
       preset: values.dspPreset,
       enabledOperations,
-      asrModel: 'Whisper-medium (demo)',
+      asrModel: 'Whisper (backend)',
       transcriptLanguage: values.language,
       segmentCount: transcript.length,
-      processingStatus: 'Completed',
+      processingStatus: 'Queued',
     },
   };
 }

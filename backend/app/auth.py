@@ -1,4 +1,4 @@
-"""Firebase ID token verification.
+"""ID token verification.
 
 Owner identity is derived solely from the verified token uid. Client-provided
 identifiers are never trusted.
@@ -53,12 +53,12 @@ def verify_id_token(
     token: str | None = None,
     check_revoked: bool = True,
 ) -> VerifiedUser:
-    """Verify a Firebase ID token and return the trusted uid."""
+    """Verify an ID token and return the trusted uid."""
     raw_token = token or (
         require_bearer_token(authorization) if authorization else None
     )
     if not raw_token:
-        raise AuthError(ErrorCode.AUTH_REQUIRED, "Firebase ID token is required")
+        raise AuthError(ErrorCode.AUTH_REQUIRED, "ID token is required")
 
 
     # In local demo mode we skip real verification and accept any token.

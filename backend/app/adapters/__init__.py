@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-# Import only the real adapters – mock adapters have been removed.
+# Import only the real adapters.
 from app.adapters.real import (
     RealAnswerGenerator,
     RealAudioProcessor,
@@ -15,16 +15,15 @@ from app.adapters.real import (
     RealRetriever,
     RealTranscriber,
 )
-from app.adapters.mock import MockTranscriber
 
 from app.config import get_settings
 
-# Single adapter map – always "real".
+# Single adapter map.
 _ADAPTERS: dict[str, dict[str, type[Any]]] = {
     "real": {
         "media": RealMediaService,
         "audio": RealAudioProcessor,
-        "transcriber": MockTranscriber,
+        "transcriber": RealTranscriber,
         "chunker": RealChunker,
         "embedder": RealEmbedder,
         "retriever": RealRetriever,
@@ -35,6 +34,6 @@ _ADAPTERS: dict[str, dict[str, type[Any]]] = {
 
 
 def adapter_bundle() -> dict[str, Any]:
-    """Instantiate adapters – always real implementations."""
+    """Instantiate adapters – real implementations."""
     classes = _ADAPTERS["real"]
     return {name: cls() for name, cls in classes.items()}

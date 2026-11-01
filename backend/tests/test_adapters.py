@@ -1,14 +1,15 @@
 from app.adapters import adapter_bundle
-from app.adapters.mock import MockTranscriber
-from app.adapters.real import AdapterNotConfigured, RealTranscriber
+from app.adapters.real import RealTranscriber
 
 
-def test_mock_bundle_is_selected_by_default() -> None:
+def test_real_bundle_is_selected_by_default() -> None:
     bundle = adapter_bundle()
-    assert isinstance(bundle["transcriber"], MockTranscriber)
+    assert isinstance(bundle["transcriber"], RealTranscriber)
 
 
 def test_real_adapter_raises_clear_error() -> None:
+    from app.adapters.real import AdapterNotConfigured
+
     adapter = RealTranscriber()
     try:
         adapter.transcribe(None, {})

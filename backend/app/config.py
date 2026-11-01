@@ -55,20 +55,14 @@ class Settings(BaseSettings):
     job_ttl_seconds: int = Field(default=24 * 3600, gt=0)
     worker_enabled: bool = True
 
-    # Firebase
-    firebase_project_id: str | None = None
-    firebase_storage_bucket: str | None = None
-    firebase_credentials_path: str | None = None
-    firebase_auth_emulator_host: str | None = None
-    firestore_emulator_host: str | None = None
-    firebase_storage_emulator_host: str | None = None
+    # (no external storage backend; local only)
 
     # Provider configuration (keys stay server-side; never committed)
     openai_api_key: str | None = None
     groq_api_key: str | None = None
     custom_asr_base_url: str | None = None
 
-    repository_backend: Literal["auto", "firestore", "memory"] = "auto"
+    repository_backend: Literal["memory"] = "memory"
     local_storage_root: str = "local_storage"
     storage_signed_url_secret: str = "local-dev-storage-secret"
 
