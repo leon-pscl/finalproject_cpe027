@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # Runtime posture
     env: Env = "dev"
     processing_mode: Literal["mock", "real"] = "mock"
-    asr_provider: Literal["none", "faster-whisper", "groq"] = "none"
+    asr_provider: Literal["none", "faster-whisper"] = "faster-whisper"
     embed_provider: Literal["none", "mock", "groq", "hf"] = "hf"
     llm_provider: str = "groq"
     dsp_enabled: bool = False

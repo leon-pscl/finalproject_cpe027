@@ -19,8 +19,8 @@ services:
       REPOSITORY_BACKEND: memory
       LOCAL_STORAGE_ROOT: /data/storage
       PROCESSING_MODE: real   # ffmpeg is installed in the image, so the full DSP path works
-      ASR_PROVIDER: groq      # real ASR via Groq Whisper; asr.transcribe_file dispatches on this
-      WHISPER_MODEL: whisper-large-v3   # a Groq model ID, not a faster-whisper size name
+      ASR_PROVIDER: faster-whisper      # local faster-whisper ASR
+      WHISPER_MODEL: tiny   # faster-whisper size; change to base only if you profile memory
       ENHANCE_DEFAULT: "true" # DSP enhancement on the /api/transcriptions path the frontend uses
       DSP_ENABLED: "true"     # DSP in the lecture-pipeline worker (media.py filter graph)
       MAX_UPLOAD_MB: "512"
