@@ -38,6 +38,7 @@ class JobStage(str, Enum):
     VALIDATING = "validating"
     EXTRACTING = "extracting"
     PREPROCESSING = "preprocessing"
+    TRANSCRIBING = "transcribing"
     ENHANCING = "enhancing"
     RATE_LIMITED = "rate_limited"
     RETRYING = "retrying"

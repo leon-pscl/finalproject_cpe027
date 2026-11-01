@@ -1,9 +1,9 @@
 import os
-import httpx
 from typing import List
 
 # Use the Settings loader to pull the Groq API key (ensures .env is read)
 from .config import get_settings
+from .groq_http import post_with_retry
 
 class GroqAnswerGenerator:
     """Simple wrapper around Groq's chat completion API (openai/gpt-oss-20b).
@@ -40,8 +40,9 @@ class GroqAnswerGenerator:
             "temperature": 0.0,
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
-        resp = httpx.post(self.endpoint, json=payload, headers=headers, timeout=30)
-        resp.raise_for_status()
+        # Retries 429/5xx: without it a rate limit makes the Q&A endpoint fall back to
+        # raw concatenated passages, which reads as a broken answer.
+        resp = post_with_retry(self.endpoint, json=payload, headers=headers, timeout=30)
         data = resp.json()
         answer = data["choices"][0]["message"]["content"]
         return answer.strip()
