@@ -187,7 +187,7 @@ def detect_speech(P: np.ndarray) -> np.ndarray:
 
 # ---------------------------------------------------------------- one block
 def _enhance_block(
-    x: np.ndarray, rt60: float, floor_db: float, reverb_weight: float, noise_bias: float
+    x: np.ndarray, rt60: float, floor_db: float, reverb_weight: float, noise_bias: float, use_vad_held: bool = True
 ) -> tuple[np.ndarray, np.ndarray]:
     Z = stft(x)
     P = (np.abs(Z) ** 2).astype(np.float32)
@@ -203,7 +203,10 @@ def _enhance_block(
     quiet = ~binary_dilation(speech, iterations=12)
     idx = np.maximum.accumulate(np.where(quiet, np.arange(T), -1))
     N_vad = np.where(idx >= 0, Psm[:, np.clip(idx, 0, None)], N_track)
-    N = 0.5 * (N_track + N_vad)
+    if use_vad_held:
+        N = 0.5 * (N_track + N_vad)
+    else:
+        N = N_track
 
     # Late reverberation PSD: energy ~50 ms earlier, decayed by the room's RT60.
     delay_s = 0.05
@@ -287,6 +290,7 @@ def enhance(
     reverb_weight: float = 1.0,
     noise_bias: float = 1.5,
     method: str = "wiener",
+    use_vad_held: bool = True,
     on_progress: Callable[[float], None] | None = None,
 ) -> tuple[np.ndarray, DspReport]:
     t0 = time.time()
@@ -315,7 +319,7 @@ def enhance(
     starts = list(range(0, len(x), core))
     for i, s in enumerate(starts):
         a, b = max(0, s - ctx), min(len(x), s + core + ctx)
-        y, speech = _enhance_block(x[a:b], rt60, floor_db, reverb_weight, noise_bias)
+        y, speech = _enhance_block(x[a:b], rt60, floor_db, reverb_weight, noise_bias, use_vad_held)
         out[s : min(len(x), s + core)] = y[s - a : s - a + min(core, len(x) - s)]
         speech_frames = int(speech.sum())
         total_frames = len(speech)

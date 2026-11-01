@@ -5,7 +5,7 @@ import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
 
 const playerBtn =
-  'flex h-8 items-center gap-1.5 rounded px-2 text-xs hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
+  'flex h-8 items-center gap-1.5 rounded px-2 text-xs font-mono hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
 
 function PlayerCard() {
   const { fileName, stage, player, play, pause, cycleSpeed, dspUrl } = useRecording();
@@ -83,7 +83,7 @@ function ProcessedAudioPlayer({ url }: { url: string }) {
     <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5">
       <audio ref={audioRef} src={url} preload="metadata" className="sr-only" />
       <p className="text-neutral-500">Processed audio</p>
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-3 grid min-w-0 grid-cols-[auto,minmax(0,1fr),auto] items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -95,7 +95,7 @@ function ProcessedAudioPlayer({ url }: { url: string }) {
             }
             setPlaying(!playing);
           }}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded border border-ink bg-ink px-3 font-mono text-xs font-medium text-paper hover:bg-neutral-800"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded border border-ink bg-ink px-3 font-mono text-xs font-medium text-paper hover:bg-neutral-800"
         >
           {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
           {playing ? 'Pause' : 'Play'}
@@ -112,9 +112,9 @@ function ProcessedAudioPlayer({ url }: { url: string }) {
             setCurrent(next);
           }}
           aria-label="Processed audio position"
-          className="h-1 flex-1 accent-ink"
+          className="min-w-0 h-1 w-full accent-ink"
         />
-        <span className="text-neutral-500">
+        <span className="shrink-0 font-mono text-xs text-neutral-500">
           {formatTimestamp(current)} / {formatTimestamp(duration)}
         </span>
       </div>

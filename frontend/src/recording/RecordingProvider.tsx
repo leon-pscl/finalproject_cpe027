@@ -171,7 +171,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }, [activeId, activeFileName, attachAudio, teardownAudio]);
 
   /* ---------- real pipeline: poll the backend job of every chat that is processing ---------- */
-  const failChat = useCallback((id: string, message: string) => {
+  const failChat = useCallback((id: string, message: string, retainProcessedAudio: boolean = false) => {
     setFileError(message);
     setChats((current) =>
       current.map((item) =>
@@ -182,7 +182,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     );
     setProgressById(({ [id]: _removed, ...rest }) => rest);
     pollErrorsRef.current.delete(id);
-    void deleteAudio(id);
+    if (!retainProcessedAudio) void deleteAudio(id);
   }, []);
 
   const processingCount = chats.filter(isProcessing).length;
@@ -197,7 +197,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             const job = await fetchJob(jobId as string);
             pollErrorsRef.current.delete(id);
             if (job === null) return failChat(id, 'The server no longer has this transcription. Please upload the recording again.');
-            if (job.status === 'failed') return failChat(id, job.error ?? 'Transcription failed.');
+            const signedUrlEarly =
+              job.dsp && typeof job.dsp === 'object' ? (job.dsp as { signed_url?: string }).signed_url : null;
+            if (signedUrlEarly) {
+              setDspUrl(signedUrlEarly);
+            }
+            if (job.status === 'failed') {
+              return failChat(
+                id,
+                job.error ?? 'Transcription failed after DSP processing; the processed audio is available in the audio panel.',
+                Boolean(signedUrlEarly),
+              );
+            }
             if (job.status !== 'completed') {
               setProgressById((current) => ({ ...current, [id]: Math.round(job.progress * 100) }));
               return;
@@ -227,12 +238,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                   : item,
               ),
             );
-            // Update DSP URL for playback
-            const signedUrl = job.dsp && typeof job.dsp === 'object' ? (job.dsp as { signed_url?: string }).signed_url : null;
-            if (signedUrl) {
-              setDspUrl(signedUrl);
-            }
-
             setProgressById(({ [id]: _removed, ...rest }) => rest);
           } catch {
             const errors = (pollErrorsRef.current.get(id) ?? 0) + 1;

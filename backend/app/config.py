@@ -77,8 +77,14 @@ class Settings(BaseSettings):
 
     # DSP
     dsp_version: str = "0"
+    dsp_method: Literal["wiener", "spectral_subtraction"] = Field(
+        default="wiener", validation_alias=AliasChoices("DSP_METHOD", "dsp_method")
+    )
     dsp_high_pass_cutoff_hz: float = Field(default=80.0, ge=1.0, le=500.0)
     dsp_spectral_gating_enabled: bool = False
+    dsp_use_vad_held: bool = Field(
+        default=True, validation_alias=AliasChoices("DSP_USE_VAD_HELD", "dsp_use_vad_held")
+    )
     # dsp.py enhancement for POST /api/transcriptions. Off by default so the upload
     # pipeline runs media.py DSP exactly once; app.evaluate passes enhance= itself.
     enhance_default: bool = Field(
