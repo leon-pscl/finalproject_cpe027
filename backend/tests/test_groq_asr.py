@@ -57,3 +57,61 @@ def test_missing_api_key(monkeypatch):
     monkeypatch.setattr("app.config.get_settings", lambda: DummySettings())
     with pytest.raises(RuntimeError, match="Groq API key not configured"):
         groq_asr.transcribe_file("dummy.wav")
+
+
+def _capture_payload(monkeypatch, settings, **kwargs):
+    """Run transcribe_file against a mocked Groq and return the posted form data."""
+    monkeypatch.setattr("app.config.get_settings", lambda: settings)
+    fake_response = mock.Mock()
+    fake_response.status_code = 200
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {"language": "en", "duration": 1.0, "text": "hi"}
+    seen = {}
+
+    def fake_post(*args, **kw):
+        seen.update(kw.get("data") or {})
+        return fake_response
+
+    monkeypatch.setattr("httpx.post", fake_post)
+    groq_asr.transcribe_file("dummy.wav", **kwargs)
+    return seen
+
+
+def test_language_setting_is_sent_to_groq(monkeypatch):
+    """Auto-detection returns a correct transcript in the wrong language on
+    sentences that quote another one, which scores as a total miss."""
+    class DummySettings:
+        groq_api_key = "dummy-key"
+        whisper_model = "whisper-large-v3"
+        whisper_language = "en"
+    assert _capture_payload(monkeypatch, DummySettings())["language"] == "en"
+
+
+def test_language_argument_overrides_the_setting(monkeypatch):
+    class DummySettings:
+        groq_api_key = "dummy-key"
+        whisper_model = "whisper-large-v3"
+        whisper_language = ""
+    data = _capture_payload(monkeypatch, DummySettings(), language="de")
+    assert data["language"] == "de"
+
+
+def test_language_omitted_when_unset_or_auto(monkeypatch):
+    for configured in ("", "auto"):
+        class DummySettings:
+            groq_api_key = "dummy-key"
+            whisper_model = "whisper-large-v3"
+            whisper_language = configured
+        assert "language" not in _capture_payload(monkeypatch, DummySettings())
+
+
+def test_model_argument_is_honoured(monkeypatch):
+    """It used to be accepted and ignored in favour of the WHISPER_MODEL setting."""
+    class DummySettings:
+        groq_api_key = "dummy-key"
+        whisper_model = "whisper-large-v3"
+        whisper_language = ""
+    data = _capture_payload(monkeypatch, DummySettings(), model="whisper-large-v3-turbo")
+    assert data["model"] == "whisper-large-v3-turbo"
+    data = _capture_payload(monkeypatch, DummySettings())
+    assert data["model"] == "whisper-large-v3"

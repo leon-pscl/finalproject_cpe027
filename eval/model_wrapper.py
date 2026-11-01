@@ -1,10 +1,4 @@
-try:
-    import torch
-except ImportError:
-    torch = None
 import soundfile as sf
-import numpy as np
-import librosa
 import os
 import tempfile
 
@@ -19,7 +13,8 @@ class ASRModelWrapper:
     # Maximum chunk length (seconds) to stay within Groq's payload limits.
     MAX_CHUNK_SECONDS = 60
 
-    def __init__(self, model_path: str | None = None, device: str | None = None):
+    def __init__(self, model_path: str | None = None, device: str | None = None,
+                 language: str | None = "en"):
         # model_path/device are kept for compatibility; Groq ignores them.
         settings = get_settings()
         self.api_key = getattr(settings, "groq_api_key", None)
@@ -27,16 +22,12 @@ class ASRModelWrapper:
             raise RuntimeError("Groq API key not configured – set GROQ_API_KEY in your environment.")
         # Whisper model identifier used by Groq (e.g., 'small', 'base')
         self.model = getattr(settings, "whisper_model", "small")
+        # Pinned to English because every corpus under eval/manifests is English
+        # (ACL 60/60 en dev, Loquacious/VoxPopuli en). Left to auto-detect, Whisper
+        # returns a correct transcript in the wrong language on sentences that quote
+        # another one, scoring ~100% WER and faking a large DSP effect.
+        self.language = language
         self.settings = settings
-
-    def _remove_silence(self, audio: np.ndarray, sr: int, top_db: int = 20) -> np.ndarray:
-        """Drop silent sections using librosa's energy‑based split.
-        Returns the concatenated non‑silent audio.
-        """
-        intervals = librosa.effects.split(audio, top_db=top_db)
-        if intervals.size == 0:
-            return np.array([], dtype=audio.dtype)
-        return np.concatenate([audio[start:end] for start, end in intervals])
 
     def _transcribe_file(self, path: str) -> str:
         """Call Groq transcribe on a single (short) audio file and return text."""
@@ -49,6 +40,7 @@ class ASRModelWrapper:
             enhance=False,
             reverb_weight=None,
             on_phase=None,
+            language=self.language,
         )
         if not transcript.segments:
             return ""
@@ -58,11 +50,14 @@ class ASRModelWrapper:
         """Transcribe `audio_path` via Groq Whisper.
         If the file exceeds Groq's payload size, it is split into <=MAX_CHUNK_SECONDS
         chunks, each sent separately, and the results are concatenated.
+
+        Silence removal is deliberately not done here: the caller builds its arms with
+        ``dsp.strip_silence`` so both arms are stripped the same way. The librosa VAD
+        that used to run here gated the *return value* on its own energy split while
+        still uploading the unstripped file, so a sample it judged silent scored as an
+        empty hypothesis (WER 1.0) even though Whisper would have transcribed it.
         """
-        # Load audio to calculate duration (already 16 kHz mono from the harness)
         audio, sr = sf.read(audio_path)
-        audio = self._remove_silence(audio, sr)
-        # If all silence after VAD, nothing to transcribe
         if audio.size == 0:
             return ""
         max_samples = int(self.MAX_CHUNK_SECONDS * sr)

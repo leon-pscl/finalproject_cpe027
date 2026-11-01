@@ -11,3 +11,7 @@ __pycache__/
 .qwen
 .env
 eval/results/
+
+# Backup copies left behind by the eval harness when it overwrites a report
+*.stale
+eval/reports/*.pre-resume.csv
