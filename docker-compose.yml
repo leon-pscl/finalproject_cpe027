@@ -11,7 +11,8 @@ services:
     # Settings reads .env from the CWD, which is not baked into the image, so without this
     # GROQ_API_KEY is empty in the container and every LLM call silently falls back.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       # Enable the background worker and use in-memory repo for quick dev/testing
       WORKER_ENABLED: "true"
