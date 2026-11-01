@@ -29,7 +29,6 @@ import { AuthProvider } from './auth/AuthProvider';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import AppShell from './layouts/AppShell';
 import LoginPage from './pages/LoginPage';
-import HomePage from './pages/HomePage';
 import NewRecordingPage from './pages/NewRecordingPage';
 import RecordingsPage from './pages/RecordingsPage';
 import SearchPage from './pages/SearchPage';
