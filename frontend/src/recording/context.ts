@@ -2,7 +2,7 @@
 import { createContext } from 'react';
 import type { TranscriptSegment } from '../services/mock';
 
-export type Stage = 'idle' | 'transcribing' | 'generatingNotes' | 'ready';
+export type Stage = 'idle' | 'dsp' | 'transcribing' | 'generatingNotes' | 'ready';
 export type Tab = 'chat' | 'transcriptions';
 export type ChatMessage = { id: number; from: 'you' | 'assistant'; text: string };
 export type PlayerState = { currentTime: number; duration: number; playing: boolean; speed: number };
@@ -55,7 +55,7 @@ export type RecordingContextValue = {
   selectChat: (id: string) => void;
   deleteChat: (id: string) => void;
 
-  start: (file: File) => void;
+  start: (file: File) => Promise<void>;
   ask: (text: string) => void;
   play: () => void;
   pause: () => void;

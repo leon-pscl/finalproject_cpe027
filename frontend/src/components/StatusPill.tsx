@@ -4,6 +4,7 @@ import type { Stage } from '../recording/context';
 const tone: Record<Stage, string> = {
   ready: 'bg-emerald-100 text-emerald-800',
   transcribing: 'bg-amber-100 text-amber-800',
+  dsp: 'bg-amber-100 text-amber-800',
   generatingNotes: 'bg-amber-100 text-amber-800',
   idle: 'bg-slate-100 text-slate-600',
 };

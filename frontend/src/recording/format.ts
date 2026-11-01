@@ -19,10 +19,12 @@ export function timeAgo(timestamp: number, now: number = Date.now()): string {
   return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function stageLabel(stage: 'idle' | 'transcribing' | 'generatingNotes' | 'ready'): string {
+export function stageLabel(stage: 'idle' | 'dsp' | 'transcribing' | 'generatingNotes' | 'ready'): string {
   switch (stage) {
     case 'ready':
       return 'Ready';
+    case 'dsp':
+      return 'Cleaning DSP';
     case 'transcribing':
       return 'Transcribing';
     case 'generatingNotes':

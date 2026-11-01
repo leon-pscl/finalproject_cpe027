@@ -26,6 +26,8 @@ def _map_timestamp(t: float, offset_map: list[tuple[float, float, float]]) -> fl
             return last_orig_end + (t - (last_stripped_start + last_len))
     return t
 import time
+import shutil
+import os
 import random
 import numpy as np
 import httpx
@@ -91,6 +93,7 @@ def transcribe_file(
     enhance: bool | None = None,
     reverb_weight: float | None = None,
     on_phase: PhaseFn | None = None,
+    dsp_audio_out: str | None = None,
 ) -> Transcript:
     """Transcribe an audio/video file into timestamped segments.
 
@@ -293,6 +296,29 @@ def transcribe_file(
             on_segment(seg)
         if on_progress and duration > 0:
             on_progress(base + (1 - base) * min(0.99, float(raw.end) / duration))
+    if dsp_audio_out is not None:
+        from pathlib import Path
+        output = Path(dsp_audio_out)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if isinstance(audio, np.ndarray):
+                dsp.write_wav(str(output), audio)
+            else:
+                source = Path(audio)
+                if source != Path(path):
+                    try:
+                        shutil.copyfile(source, output)
+                    except Exception:
+                        dsp.write_wav(str(output), dsp.load_audio(str(source)))
+                else:
+                    dsp.write_wav(str(output), dsp.load_audio(path))
+            info = dsp_info if isinstance(dsp_info, dict) else {}
+            info["audio_path"] = str(output)
+            dsp_info = info
+        except Exception as exc:  # noqa: BLE001
+            info = dsp_info if isinstance(dsp_info, dict) else {}
+            info["error"] = str(exc)
+            dsp_info = info
     result.dsp = dsp_info
     logger.info("ASR transcription completed – %d segments", len(result.segments))
     return result

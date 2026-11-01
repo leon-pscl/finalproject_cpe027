@@ -30,7 +30,7 @@ function emptyChat(): ChatSession {
 }
 
 const isEmpty = (chat: ChatSession) => chat.stage === 'idle' && !chat.fileName && chat.messages.length === 0;
-const isProcessing = (chat: ChatSession) => chat.stage === 'transcribing' || chat.stage === 'generatingNotes';
+const isProcessing = (chat: ChatSession) => chat.stage === 'dsp' || chat.stage === 'transcribing' || chat.stage === 'generatingNotes';
 
 type Saved = { chats: ChatSession[]; activeId: string | null };
 
@@ -215,7 +215,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
                 : `Transcript ready: ${segments.length} segments${job.language ? ` (${job.language})` : ''}.${dspNote} Ask me about any part of the lecture.`;
             setChats((current) =>
               current.map((item) =>
-                item.id === id && item.stage === 'transcribing'
+                item.id === id && (item.stage === 'transcribing' || item.stage === 'dsp')
                   ? {
                       ...item,
                       stage: 'ready' as Stage,
@@ -283,7 +283,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const validation = validateAudio(file);
       if (!validation.isValid) {
         setFileError(validation.message ?? 'Unsupported file.');
-        return;
+        return Promise.resolve();
       }
       setFileError(null);
 
@@ -305,14 +305,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setChats((existing) =>
         existing.map((chat) =>
           chat.id === id
-            ? { ...chat, title: stripExtension(file.name), fileName: file.name, transcript: [], duration: 0, jobId: undefined, stage: 'transcribing', updatedAt: now }
+            ? { ...chat, title: stripExtension(file.name), fileName: file.name, transcript: [], duration: 0, jobId: undefined, stage: 'dsp', updatedAt: now }
             : chat,
         ),
       );
-      submitTranscription(file)
+      const uploadPromise = submitTranscription(file)
         .then((job) => setChats((existing) => existing.map((chat) => (chat.id === id ? { ...chat, jobId: job.id } : chat))))
-        .catch((error: unknown) => failChat(id, error instanceof Error ? error.message : 'Upload failed.'));
+        .catch((error: unknown) => { failChat(id, error instanceof Error ? error.message : 'Upload failed.'); throw error; });
       setProgressById((current) => ({ ...current, [id]: 0 }));
+      return uploadPromise;
       setTab('chat');
     },
     [activeId, failChat],

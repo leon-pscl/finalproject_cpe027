@@ -72,8 +72,9 @@ describe('recording flow (wireframes 1-5)', () => {
     const user = userEvent.setup();
     renderSignedIn();
     await user.upload(screen.getByLabelText(/recording file/i), new File(['x'], 'lecture.wav', { type: 'audio/wav' }));
+    await user.click(screen.getByRole('button', { name: /start processing/i }));
 
-    expect(screen.getByRole('progressbar', { name: /transcribing/i })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /DSP/i })).toBeInTheDocument();
     expect(await screen.findByText(/transcription ready/i, {}, { timeout: 6000 })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe('/api/transcriptions');
     expect(screen.getByText('lecture.wav')).toBeInTheDocument();
@@ -100,6 +101,7 @@ describe('recording flow (wireframes 1-5)', () => {
     const user = userEvent.setup();
     renderSignedIn();
     await user.upload(screen.getByLabelText(/recording file/i), new File(['x'], 'big.wav', { type: 'audio/wav' }));
+    await user.click(screen.getByRole('button', { name: /start processing/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/exceeds the 300 MB limit/i);
     expect(screen.getByText(/drag recording here/i)).toBeInTheDocument();
   });

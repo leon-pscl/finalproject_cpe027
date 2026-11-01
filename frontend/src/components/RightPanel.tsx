@@ -16,13 +16,13 @@ function PlayerCard() {
   }
 
   return (<>
-    <div className="rounded-3xl bg-slate-200/70 px-4 py-4 text-xs leading-5">
+    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5">
       <p className="break-all">Audio Source: {fileName}</p>
       <p className="flex items-center gap-1.5">
         Status:
         <span
           aria-hidden="true"
-          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-green-600' : 'bg-amber-500'}`}
+          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-ink' : 'bg-neutral-500'}`}
         />
         {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
       </p>
@@ -41,20 +41,85 @@ function PlayerCard() {
       </div>
     </div>
     {/* DSP‑enhanced player */}
-    <div className="rounded-3xl bg-slate-200/70 px-4 py-4 text-xs leading-5 mt-4">
+    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5 mt-4">
       <p className="break-all">Processed Audio: {fileName}</p>
       <p className="flex items-center gap-1.5">
         Status:
         <span
           aria-hidden="true"
-          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-green-600' : 'bg-amber-500'}`}
+          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-ink' : 'bg-neutral-500'}`}
         />
         {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
       </p>
       <p>(Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})</p>
-      {dspUrl && <audio src={dspUrl} controls className="w-full mt-2">Your browser does not support audio.</audio>}
+      {dspUrl && <ProcessedAudioPlayer url={dspUrl} />}
     </div>
   </>);
+}
+
+function ProcessedAudioPlayer({ url }: { url: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime = () => setCurrent(audio.currentTime);
+    const onMeta = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    const onEnded = () => setPlaying(false);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onMeta);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onMeta);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [url]);
+
+  return (
+    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5">
+      <audio ref={audioRef} src={url} preload="metadata" className="sr-only" />
+      <p className="text-neutral-500">Processed audio</p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (!audioRef.current) return;
+            if (playing) {
+              audioRef.current.pause();
+            } else {
+              void audioRef.current.play();
+            }
+            setPlaying(!playing);
+          }}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded border border-ink bg-ink px-3 font-mono text-xs font-medium text-paper hover:bg-neutral-800"
+        >
+          {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+          {playing ? 'Pause' : 'Play'}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={current}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (audioRef.current) audioRef.current.currentTime = next;
+            setCurrent(next);
+          }}
+          aria-label="Processed audio position"
+          className="h-1 flex-1 accent-ink"
+        />
+        <span className="text-neutral-500">
+          {formatTimestamp(current)} / {formatTimestamp(duration)}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {

@@ -8,7 +8,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app.contracts import ErrorCode
@@ -187,6 +187,19 @@ def get_transcription(job_id: str, store: JobStore = Depends(get_store)) -> JobO
     if job is None:
         raise HTTPException(404, "Transcription not found.")
     return _to_out(job)
+
+
+@app.get("/api/transcriptions/{job_id}/audio", tags=["transcription"])
+def get_transcription_audio(job_id: str, store: JobStore = Depends(get_store)) -> FileResponse:  # noqa: B008
+    job = store.get(job_id)
+    if job is None or not getattr(job, "dsp_audio_path", None):
+        raise HTTPException(404, "Processed audio not found.")
+    from pathlib import Path as _Path
+
+    path = _Path(job.dsp_audio_path)
+    if not path.is_file():
+        raise HTTPException(404, "Processed audio not found.")
+    return FileResponse(path, media_type="audio/wav", filename=f"dsp-{job_id}.wav")
 
 
 @app.delete("/api/transcriptions/{job_id}", status_code=204, tags=["transcription"])

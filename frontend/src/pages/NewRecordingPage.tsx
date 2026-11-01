@@ -1,11 +1,10 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Clock } from 'lucide-react';
-import { formatTimestamp } from '../services/mock';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { Clock, Pause, Play } from 'lucide-react';
+import { formatTimestamp, validateAudio } from '../services/mock';
 import { useRecording } from '../recording/useRecording';
 
 /* ---------- Frame 1: Input Recording ---------- */
-function DropZone() {
-  const { start, fileError } = useRecording();
+function DropZone({ onFile, fileError }: { onFile: (file: File) => void; fileError: string | null }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -13,7 +12,7 @@ function DropZone() {
     event.preventDefault();
     setDragging(false);
     const file = event.dataTransfer.files?.[0];
-    if (file) start(file);
+    if (file) onFile(file);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -52,7 +51,7 @@ function DropZone() {
           tabIndex={-1}
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) start(file);
+            if (file) onFile(file);
             event.target.value = '';
           }}
         />
@@ -67,7 +66,7 @@ function DropZone() {
   );
 }
 
-/* ---------- Frames 2 & 3: Loading | Transcribe / Generate Notes ---------- */
+/* ---------- Frame 2/3: Loading ---------- */
 function LoadingBar({ label }: { label: string }) {
   const { progress } = useRecording();
   return (
@@ -89,7 +88,7 @@ function LoadingBar({ label }: { label: string }) {
   );
 }
 
-/* ---------- Frames 4 & 5: Transcription Ready ---------- */
+/* ---------- Frame 4/5: Ready ---------- */
 function BigWave() {
   return (
     <svg viewBox="0 0 260 130" aria-hidden="true" className="h-32 w-64">
@@ -122,7 +121,6 @@ function MiniWave({ seed }: { seed: number }) {
 function TranscriptionReady() {
   const { fileName, transcript, player, seek } = useRecording();
 
-  // Show message if no transcript segments
   if (transcript.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
@@ -137,12 +135,9 @@ function TranscriptionReady() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
       <h1 className="text-3xl font-medium">Transcription Ready</h1>
-      <div className="mt-6">
-        <BigWave />
-      </div>
+      <div className="mt-6"><BigWave /></div>
       <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
 
-      {/* One grid for every row => time, waveform and text line up in fixed columns. */}
       <ul className="mt-10 grid w-full grid-cols-[4rem_6.5rem_minmax(0,1fr)] gap-x-4 gap-y-2">
         {transcript.map((segment, index) => {
           const next = transcript[index + 1];
@@ -176,8 +171,82 @@ function TranscriptionReady() {
   );
 }
 
+function RecordingPreview({ src }: { src: string; }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime = () => setCurrent(audio.currentTime);
+    const onMeta = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    const onEnded = () => setPlaying(false);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onMeta);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onMeta);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [src]);
+
+  return (
+    <div className="mt-3 rounded-lg border border-dashed border-ink bg-paper p-2 font-mono">
+      <audio ref={audioRef} src={src} preload="metadata" className="sr-only" />
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (!audioRef.current) return;
+            if (playing) audioRef.current.pause();
+            else void audioRef.current.play();
+            setPlaying(!playing);
+          }}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded border border-ink bg-ink px-3 text-xs font-medium text-paper hover:bg-neutral-800"
+        >
+          {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+          {playing ? 'Pause' : 'Play'}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={current}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (audioRef.current) audioRef.current.currentTime = next;
+            setCurrent(next);
+          }}
+          aria-label="Selected recording position"
+          className="h-1 flex-1 accent-ink"
+        />
+        <span className="text-xs text-neutral-500">
+          {formatTimestamp(current)} / {formatTimestamp(duration)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function NewRecordingPage() {
-  const { stage } = useRecording();
+  const { stage, fileError: uploadError, start } = useRecording();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFileError, setSelectedFileError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
   if (stage === 'ready') {
     return (
@@ -187,9 +256,68 @@ export default function NewRecordingPage() {
     );
   }
 
+  if (selectedFile && previewUrl) {
+    const error = selectedFileError || uploadError;
+    return (
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
+        <div className="w-full max-w-[26rem] text-center">
+          <p className="font-mono text-sm uppercase tracking-widest">Review recording</p>
+          <RecordingPreview src={previewUrl} />
+          <p className="mt-2 break-all font-mono text-xs uppercase tracking-wide text-neutral-500">{selectedFile.name}</p>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFile(null);
+                setSelectedFileError(null);
+                start(selectedFile).catch((error: unknown) => {
+                  setSelectedFileError(error instanceof Error ? error.message : 'Upload failed.');
+                });
+              }}
+              className="inline-flex min-h-[44px] items-center justify-center rounded border border-ink bg-ink px-4 py-2.5 font-mono text-sm font-medium text-paper hover:bg-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            >
+              Start processing
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFile(null);
+                setSelectedFileError(null);
+              }}
+              className="inline-flex min-h-[44px] items-center justify-center rounded border border-ink bg-paper px-4 py-2.5 font-mono text-sm font-medium text-ink hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            >
+              Delete
+            </button>
+          </div>
+          {error ? (
+            <p role="alert" className="mt-2 text-sm text-red-700">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
-      {stage === 'idle' ? <DropZone /> : null}
+      {stage === 'idle' ? (
+        <DropZone
+          fileError={selectedFileError || uploadError}
+          onFile={(file) => {
+            const validation = validateAudio(file);
+            if (!validation.isValid) {
+              setSelectedFileError(validation.message ?? 'Unsupported file.');
+              setSelectedFile(null);
+              return;
+            }
+            setSelectedFileError(null);
+            setSelectedFile(file);
+          }}
+        />
+      ) : null}
+      {stage === 'dsp' ? <LoadingBar label="Cleaning audio via DSP..." /> : null}
+
       {stage === 'transcribing' ? <LoadingBar label="Transcribing..." /> : null}
       {stage === 'generatingNotes' ? <LoadingBar label="Generating notes..." /> : null}
     </div>
