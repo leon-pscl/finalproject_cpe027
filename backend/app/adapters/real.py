@@ -110,12 +110,15 @@ class RealEmbedder(Embedder):
 
 
 import json
+import uuid
 from typing import List
+
+from pydantic import BaseModel, Field
 
 from app.adapters.base import Retriever
 from app.adapters.base import Embedder
 from app.adapters.base import Chunker
-from app.contracts import Chunk
+from app.contracts import Chunk, NoteEntry
 from app.config import get_settings
 from app.vector_store import FAISSVectorStore, faiss
 # from app.adapters import adapter_bundle  # removed to avoid circular import
@@ -187,36 +190,183 @@ class RealAnswerGenerator(AnswerGenerator):
         _require_real_mode("RealAnswerGenerator")
 
 
+import uuid
+
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class _GeneratedNote(BaseModel):
+    section: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    reference_chunk_ids: List[str] = Field(default_factory=list)
+
+
+class _GeneratedNotes(BaseModel):
+    notes: List[_GeneratedNote] = Field(default_factory=list)
+
+
+import uuid
+
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class _GeneratedNote(BaseModel):
+    section: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    reference_chunk_ids: List[str] = Field(default_factory=list)
+
+
+class _GeneratedNotes(BaseModel):
+    notes: List[_GeneratedNote] = Field(default_factory=list)
+
+
 class RealNotesGenerator(NotesGenerator):
-    def generate(
-        self, authorized_timed_chunks: Sequence[Any], config: dict
-    ) -> list[Any]:
-        # Summarize lecture using Groq LLM. Concatenate chunk texts and ask for a short
-        # summary (max ~300 words). This mirrors the mock behavior but produces a real note.
-        from app.answer_generator import GroqAnswerGenerator
+    def generate(self, authorized_timed_chunks, config):
+        chunks = list(authorized_timed_chunks or [])
+        if not chunks:
+            return []
 
-        # Build a simple context from all chunk texts.
-        context = " ".join(c.text for c in authorized_timed_chunks)
-        prompt = (
-            "Summarize the following lecture content in up to 300 words. "
-            "Focus on the main topics, important facts, and any conclusions."
-        )
-        answer_gen = GroqAnswerGenerator()
-        summary = answer_gen.generate(prompt, [{"text": context, "chunk_id": "summary"}])
-        # Return a single NoteEntry matching the contracts.
-        from app.contracts import NoteEntry
+        valid_ids = {
+            getattr(chunk, "chunk_id", None)
+            for chunk in chunks
+            if getattr(chunk, "chunk_id", None)
+        }
 
-        return [
-            NoteEntry(
-                note_id="generated-note",
-                lecture_id=str(config.get("lecture_id", "")),
-                version=str(config.get("processing_version", "0")),
-                section="Summary",
-                title="Lecture Summary",
-                description=summary,
-                supporting_segment_ids=[
-                    c.chunk_id for c in authorized_timed_chunks if c.chunk_id
-                ],
+        prepared = []
+        for index, chunk in enumerate(chunks):
+            chunk_id = getattr(chunk, "chunk_id", None) or "chunk-%d" % index
+            text = getattr(chunk, "text", None)
+            text = text if text is not None else str(chunk)
+            prepared.append((str(chunk_id), str(text)))
+
+        lecture_id = str(config.get("lecture_id", ""))
+        version = str(config.get("processing_version", "0"))
+        notes = []
+
+        lc_available = True
+        try:
+            from langchain_core.prompts import ChatPromptTemplate
+            from langchain_core.output_parsers import (  # unused fallback
+                PydanticOutputParser,
             )
-        ]
+            from langchain_groq import ChatGroq
+        except Exception:
+            lc_available = False
 
+        if lc_available:
+            try:
+                settings = get_settings()
+                if not settings.groq_api_key:
+                    raise RuntimeError("groq api key not configured")
+
+                from langchain_groq import ChatGroq
+
+                model = ChatGroq(
+                    api_key=settings.groq_api_key,
+                    model="openai/gpt-oss-20b",
+                    temperature=0.0,
+                )
+                structured_model = model.with_structured_output(_GeneratedNotes)
+
+                def run_batch(batch):
+                    context = "\n".join("[{}] {}".format(cid, txt) for cid, txt in batch)
+                    last_error = None
+                    for attempt in range(2):
+                        try:
+                            if attempt == 0:
+                                prompt = ChatPromptTemplate.from_messages(
+                                    [
+                                        (
+                                            "system",
+                                            "You generate concise lecture notes. "
+                                            "Use only the provided chunk context and reference real chunk IDs exactly.",
+                                        ),
+                                        (
+                                            "user",
+                                            "Generate structured lecture notes.\n\n"
+                                            "Context:\n{context}\n\n"
+                                            "{format_instructions}",
+                                        ),
+                                    ]
+                                )
+                            else:
+                                prompt = ChatPromptTemplate.from_messages(
+                                    [
+                                        (
+                                            "system",
+                                            "Return strictly valid JSON matching the required schema.",
+                                        ),
+                                        (
+                                            "user",
+                                            "Previous error: {}\n\nSchema: {}\n\nContext:\n{}".format(
+                                                last_error,
+                                                "reference_chunk_ids must be real chunk IDs",
+                                                context,
+                                            ),
+                                        ),
+                                    ]
+                                )
+                            try:
+                                from langchain_core.output_parsers import PydanticOutputParser
+                            except Exception:
+                                PydanticOutputParser = None
+                            format_text = "JSON only"
+                            chain = prompt | structured_model
+                            result = chain.invoke(
+                                {
+                                    "context": context,
+                                    "format_instructions": format_text,
+                                }
+                            )
+                            return getattr(result, "notes", [])
+                        except Exception as exc:
+                            last_error = exc
+                            if attempt == 1:
+                                raise RuntimeError("structured generation failed: {}".format(exc))
+                    return []
+
+                batch_size = 6
+                batches = [prepared[i:i + batch_size] for i in range(0, len(prepared), batch_size)]
+                for batch in batches:
+                    generated = run_batch(batch)
+                    for note in generated or []:
+                        refs = [rid for rid in note.reference_chunk_ids if rid in valid_ids]
+                        notes.append(
+                            NoteEntry(
+                                note_id="generated-note-%s" % uuid.uuid4().hex[:8],
+                                lecture_id=lecture_id,
+                                version=version,
+                                section=note.section,
+                                title=note.title,
+                                description=note.description,
+                                supporting_segment_ids=refs,
+                            )
+                        )
+            except Exception:
+                lc_available = False
+
+        if not lc_available or not notes:
+            from app.answer_generator import GroqAnswerGenerator
+
+            text = " ".join(text for _, text in prepared)
+            generator = GroqAnswerGenerator()
+            summary = generator.generate(
+                "Summarize in up to 300 words.", [{"text": text, "chunk_id": "summary"}]
+            )
+            notes = [
+                NoteEntry(
+                    note_id="generated-note",
+                    lecture_id=lecture_id,
+                    version=version,
+                    section="Summary",
+                    title="Lecture Summary",
+                    description=summary,
+                    supporting_segment_ids=list(valid_ids),
+                )
+            ]
+
+        return notes
