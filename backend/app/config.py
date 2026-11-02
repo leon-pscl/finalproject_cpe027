@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     whisper_model: str = "small"
     whisper_device: str = "auto"  # auto | cpu | cuda
     whisper_compute_type: str = "int8"  # int8 for CPU; float16 for GPU
+    whisper_threads: int = Field(default=4, gt=0, validation_alias=AliasChoices("WHISPER_THREADS", "whisper_threads"))
     # "" (empty) = auto-detect, needed for Filipino/English code-switching; or force "en" / "tl".
     whisper_language: str = ""
     model_cache_dir: str = "/models"

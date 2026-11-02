@@ -68,19 +68,20 @@ def get_model():
         if _model is None:
             import os
 
-            os.environ.setdefault("OMP_NUM_THREADS", "1")
-            os.environ.setdefault("MKL_NUM_THREADS", "1")
-            os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+            s = get_settings()
+            threads = max(1, int(getattr(s, "whisper_threads", 2)))
+            os.environ.setdefault("OMP_NUM_THREADS", str(threads))
+            os.environ.setdefault("MKL_NUM_THREADS", str(threads))
+            os.environ.setdefault("OPENBLAS_NUM_THREADS", str(threads))
 
             from faster_whisper import WhisperModel
 
-            s = get_settings()
             _model = WhisperModel(
                 s.whisper_model,
                 device=s.whisper_device,
                 compute_type=s.whisper_compute_type,
                 download_root=s.model_cache_dir,
-                cpu_threads=1,
+                cpu_threads=threads,
                 num_workers=1,
             )
         return _model
