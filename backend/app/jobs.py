@@ -270,9 +270,28 @@ class JobStore:
             self._persist_job(job)
 
             audio_for_asr = job.dsp_audio_path or job.path
+            # Continue progress monotonically from the DSP stage (0.1 -> 1.0),
+            # rather than letting ASR restart the bar at zero.
+            job.progress = max(job.progress, 0.1)
+            job.phase = "transcribing"
+            job.updated_at = time.time()
+            self._persist_job(job)
+
+            def on_asr_progress(p: float) -> None:
+                try:
+                    value = 0.1 + 0.9 * float(p)
+                except (TypeError, ValueError):
+                    value = 0.1
+                job.progress = max(job.progress, min(0.999, value))
+                job.updated_at = time.time()
+                last = getattr(job, "_last_persist", 0.0)
+                if time.time() - last >= 5:
+                    job._last_persist = time.time()
+                    self._persist_job(job)
+
             result = self._transcriber(
                 audio_for_asr,
-                on_progress=on_progress,
+                on_progress=on_asr_progress,
                 on_segment=on_segment,
                 on_phase=on_phase,
                 enhance=False,
