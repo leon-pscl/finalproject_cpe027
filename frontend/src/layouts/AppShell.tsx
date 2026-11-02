@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { animate } from 'animejs';
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import { Outlet, useNavigate } from 'react-router-dom';
@@ -30,6 +31,30 @@ function ShellLayout() {
   const [leftOpen, setLeftOpen] = useState(isDesktop);
   const [rightOpen, setRightOpen] = useState(isDesktop);
   const anyDrawerOpen = (leftOpen || rightOpen) && !isDesktop();
+
+  const [leftWidth, setLeftWidth] = useState(192);
+  const [rightWidth, setRightWidth] = useState(288);
+  const resizeTarget = useRef<'left' | 'right' | null>(null);
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      if (resizeTarget.current === 'left') {
+        setLeftWidth(Math.min(420, Math.max(160, event.clientX)));
+      } else if (resizeTarget.current === 'right') {
+        setRightWidth(Math.min(460, Math.max(200, window.innerWidth - event.clientX)));
+      }
+    };
+    const onUp = () => {
+      resizeTarget.current = null;
+      document.body.style.cursor = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
@@ -98,6 +123,19 @@ function ShellLayout() {
     });
   }, [rightOpen]);
 
+  const startLeftResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!isDesktop()) return;
+    resizeTarget.current = 'left';
+    document.body.style.cursor = 'col-resize';
+    event.preventDefault();
+  };
+  const startRightResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!isDesktop()) return;
+    resizeTarget.current = 'right';
+    document.body.style.cursor = 'col-resize';
+    event.preventDefault();
+  };
+
   const collapseLeft = () => {
     const el = leftRef.current;
     if (!el || prefersReducedMotion()) {
@@ -140,9 +178,17 @@ function ShellLayout() {
       {leftOpen ? (
         <div
           ref={leftRef}
-          className="fixed inset-y-0 left-0 z-30 w-60 border-r border-neutral-400 bg-paper lg:static lg:z-auto lg:w-48 lg:shrink-0"
+          style={{ width: leftWidth }}
+          className="relative fixed inset-y-0 left-0 z-30 border-r border-neutral-400 bg-paper lg:static lg:z-auto lg:shrink-0"
         >
           <Sidebar onCollapse={collapseLeft} onLogout={handleLogout} />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            onMouseDown={startLeftResize}
+            className="absolute right-0 top-0 bottom-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-neutral-400"
+          />
         </div>
       ) : null}
 
@@ -167,9 +213,17 @@ function ShellLayout() {
       {rightOpen ? (
         <div
           ref={rightRef}
-          className="fixed inset-y-0 right-0 z-30 w-80 max-w-full border-l border-ink bg-paper lg:static lg:z-auto lg:w-72 lg:shrink-0"
+          style={{ width: rightWidth }}
+          className="relative fixed inset-y-0 right-0 z-30 max-w-full border-l border-ink bg-paper lg:static lg:z-auto lg:shrink-0"
         >
           <RightPanel onCollapse={collapseRight} />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize assistant panel"
+            onMouseDown={startRightResize}
+            className="absolute left-0 top-0 bottom-0 z-10 w-1 cursor-col-resize bg-transparent hover:bg-neutral-400"
+          />
         </div>
       ) : null}
 

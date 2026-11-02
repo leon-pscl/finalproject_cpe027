@@ -69,7 +69,7 @@ class Settings(BaseSettings):
 
     # Pretrained Whisper model run through faster-whisper (CTranslate2).
     # tiny | base | small | medium | large-v3 | distil-large-v3 ...
-    whisper_model: str = "small"
+    whisper_model: str = "base"
     whisper_device: str = "auto"  # auto | cpu | cuda
     whisper_compute_type: str = "int8"  # int8 for CPU; float16 for GPU
     whisper_threads: int = Field(default=4, gt=0, validation_alias=AliasChoices("WHISPER_THREADS", "whisper_threads"))

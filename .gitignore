@@ -17,6 +17,7 @@ eval/results/
 eval/reports/*.pre-resume.csv
 
 storage/
+models/
 local_storage/
 backend/local_storage/
 backend/storage/

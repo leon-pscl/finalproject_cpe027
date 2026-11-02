@@ -1,34 +1,36 @@
 services:
   backend:
-    build:
+    build: &backend-build
       context: ./backend
       dockerfile: Dockerfile
-      target: runtime   # without this Docker builds the last stage (test) and runs pytest
+      target: runtime
     image: lectureflow:latest
     container_name: lectureflow_backend
+    depends_on:
+      model-download:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
-    # Settings reads .env from the CWD, which is not baked into the image, so without this
-    # GROQ_API_KEY is empty in the container and every LLM call silently falls back.
     env_file:
       - path: .env
         required: false
-    environment:
-      # Enable the background worker and use in-memory repo for quick dev/testing
+    environment: &backend-environment
       WORKER_ENABLED: "true"
       REPOSITORY_BACKEND: memory
       LOCAL_STORAGE_ROOT: /data/storage
-      PROCESSING_MODE: real   # ffmpeg is installed in the image, so the full DSP path works
-      ASR_PROVIDER: faster-whisper      # local faster-whisper ASR
-      WHISPER_MODEL: small   # faster-whisper size; change to base only if you profile memory
-      ENHANCE_DEFAULT: "true" # DSP enhancement on the /api/transcriptions path the frontend uses
-      DSP_ENABLED: "true"     # DSP in the lecture-pipeline worker (media.py filter graph)
+      PROCESSING_MODE: real
+      ASR_PROVIDER: faster-whisper
+      WHISPER_MODEL: base
+      WHISPER_THREADS: "4"
+      ENHANCE_DEFAULT: "true"
+      DSP_ENABLED: "true"
       MAX_UPLOAD_MB: "512"
       LOG_LEVEL: "DEBUG"
+      MODEL_CACHE_DIR: /models
       PYTHONPATH: /app
-    volumes:
-      - ./storage:/data/storage   # host folder persists uploaded media across restarts
-      - ./models:/models   # persists downloaded faster-whisper weights across restarts
+    volumes: &app-volumes
+      - ./storage:/data/storage
+      - ./models:/models
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
       interval: 10s
@@ -37,7 +39,17 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # The nginx gateway that serves the built frontend and proxies /api/ to the backend.
+  model-download:
+    image: lectureflow:latest
+    build: *backend-build
+    restart: "no"
+    volumes: *app-volumes
+    environment:
+      <<: *backend-environment
+      WORKER_ENABLED: "false"
+      LOG_LEVEL: "INFO"
+    command: ["python", "-c", "from app.asr import get_model; get_model()"]
+
   frontend:
     build:
       context: .
@@ -49,10 +61,9 @@ services:
       - "8080:80"
     depends_on:
       backend:
-        condition: service_healthy   # otherwise the first requests through the gateway 502
+        condition: service_healthy
     restart: unless-stopped
 
-# Optional helper for running tests inside a temporary container
   test:
     build:
       context: ./backend
@@ -70,5 +81,4 @@ services:
       - ./storage:/data/storage
     depends_on:
       - backend
-    # The test container runs once then exits
     restart: "no"

@@ -4,9 +4,6 @@ import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
 
-const playerBtn =
-  'flex h-8 items-center gap-1.5 rounded px-2 text-xs font-mono hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
-
 const rowBtn =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-ink bg-paper text-ink hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
 
@@ -64,7 +61,7 @@ function PlayerRow({
 }
 
 function PlayerCard() {
-  const { fileName, stage, player, play, pause, seek, dspUrl } = useRecording();
+  const { fileName, player, play, pause, seek, dspUrl } = useRecording();
   const hasAudio = fileName !== null;
   const ready = hasAudio;
 
