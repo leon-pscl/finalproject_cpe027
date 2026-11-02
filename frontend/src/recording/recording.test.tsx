@@ -47,6 +47,9 @@ describe('recording flow (wireframes 1-5)', () => {
     // Test-only stub of the HTTP boundary; the real backend is covered by backend/tests.
     let polls = 0;
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (typeof url === 'string' && url.includes('/notes')) {
+        return Response.json([{ note_id: 'note-1', section: 'Summary', title: 'Notes', description: 'Generated notes.', supporting_segment_ids: [] }], { status: 200 });
+      }
       if (init?.method === 'POST') return Response.json({ id: 'job-1', status: 'queued', progress: 0, segments: [] }, { status: 202 });
       polls += 1;
       return Response.json(

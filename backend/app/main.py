@@ -11,12 +11,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app.contracts import ErrorCode, NoteEntry, Chunk
 from app.asr import Transcript
 from app.chunker import Chunker
+from app.contracts import AnswerResponse, Chunk, ErrorCode, NoteEntry
 from app.embedder import Embedder
-from app.routers import lectures, storage, qa, notes, export, delete, dsp
-
+from app.routers import delete, dsp, lectures, notes, qa, storage
 
 from .config import get_settings
 from .dependencies import get_repository, get_storage
@@ -239,6 +238,64 @@ def generate_transcription_notes(job_id: str, store: JobStore = Depends(get_stor
     return notes_gen.generate(
         chunks, {"lecture_id": job.id, "processing_version": "v1"}
     ) or []
+
+
+class TranscriptionAnswerRequest(BaseModel):
+    question: str
+    top_k: int = 5
+
+
+@app.post("/api/transcriptions/{job_id}/answer", response_model=AnswerResponse, tags=["transcription"])
+def generate_transcription_answer(
+    job_id: str,
+    request: TranscriptionAnswerRequest,
+    store: JobStore = Depends(get_store),
+) -> AnswerResponse:
+    job = store.get(job_id)
+    if job is None:
+        raise HTTPException(404, "Transcription not found.")
+    if job.status != "completed":
+        raise HTTPException(409, "Transcription is not complete.")
+
+    from app.adapters import adapter_bundle
+    from app.embedder import Embedder
+    from app.vector_store import FAISSVectorStore
+
+    settings = get_settings()
+    transcript = Transcript(
+        language=job.language, duration=job.duration, segments=list(job.segments)
+    )
+    chunks = Chunker().chunk(transcript, job.id, "v1")
+    if chunks:
+        vectors = Embedder().embed(chunks)
+        FAISSVectorStore(settings.local_storage_root, job.id).add(
+            [chunk.model_dump() for chunk in chunks], vectors
+        )
+
+    vector_store = FAISSVectorStore(settings.local_storage_root, job.id)
+    if vector_store.index is not None:
+        tmp = Chunk(
+            chunk_id="tmp",
+            lecture_id=job.id,
+            version="v1",
+            segment_ids=[],
+            start_s=0.0,
+            end_s=0.0,
+            text=request.question,
+            embedding_model="tmp",
+            embedding_revision="0",
+        )
+        query_vec = Embedder().embed([tmp])[0]
+        top_chunks = [Chunk(**chunk) for chunk, _ in vector_store.query(query_vec, top_k=request.top_k)]
+    else:
+        top_chunks = chunks
+
+    answer_gen = adapter_bundle()["answer"]
+    return answer_gen.answer(
+        request.question,
+        top_chunks,
+        {"lecture_id": job.id, "processing_version": "v1"},
+    )
 
 
 @app.delete("/api/transcriptions/{job_id}", status_code=204, tags=["transcription"])

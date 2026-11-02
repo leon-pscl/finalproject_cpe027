@@ -3,7 +3,7 @@ import { useAuth } from '../auth/useAuth';
 import { validateAudio } from '../services/mock';
 import { formatTimestamp } from './format';
 import type { TranscriptSegment } from '../services/api';
-import { deleteJob, fetchJob, submitTranscription, toTranscript } from '../services/api';
+import { deleteJob, fetchJob, generateTranscriptionAnswer, submitTranscription, toTranscript } from '../services/api';
 import { deleteAudio, loadAudio, saveAudio } from './audioStore';
 import { RecordingContext, type ChatMessage, type ChatSession, type PlayerState, type Stage, type Tab } from './context';
 import { stripExtension } from './format';
@@ -341,7 +341,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   );
 
   const ask = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const question = text.trim();
       if (!question) return;
       let chat = chatsRef.current.find((item) => item.id === activeId);
@@ -352,8 +352,23 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         setActiveId(created.id);
       }
       const id = chat.id;
+      const jobId = chat.jobId ?? null;
       const youMessage = makeMessage('you', question);
-      const botMessage = makeMessage('assistant', transcriptLookup(question, chat.transcript));
+
+      let answerText = transcriptLookup(question, chat.transcript);
+      if (jobId) {
+        try {
+          const response = await generateTranscriptionAnswer(jobId, question);
+          const generated = (response.blocks ?? [])
+            .map((block) => block.text)
+            .join('\n\n')
+            .trim();
+          if (generated) answerText = generated;
+        } catch {
+          // Keep the local fallback if the backend is unavailable.
+        }
+      }
+      const botMessage = makeMessage('assistant', answerText);
       const now = Date.now();
       setChats((existing) =>
         existing.map((item) =>

@@ -1,4 +1,3 @@
-// TESTING DEPLOYMENT
 import { createContext } from 'react';
 import type { TranscriptSegment } from '../services/api';
 
@@ -57,7 +56,7 @@ export type RecordingContextValue = {
   deleteChat: (id: string) => void;
 
   start: (file: File) => Promise<void>;
-  ask: (text: string) => void;
+  ask: (text: string) => Promise<void>;
   play: () => void;
   pause: () => void;
   cycleSpeed: () => void;

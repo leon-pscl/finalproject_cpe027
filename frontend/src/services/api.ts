@@ -848,6 +848,21 @@ export type TranscriptNote = {
   supporting_segment_ids: string[];
 };
 
+export type TranscriptionAnswer = {
+  status: string;
+  blocks: { block_id: string; text: string; source_ids: string[] }[];
+};
+
+export async function generateTranscriptionAnswer(jobId: string, question: string): Promise<TranscriptionAnswer> {
+  const res = await fetch(`/api/transcriptions/${encodeURIComponent(jobId)}/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, top_k: 5 }),
+  });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
 export async function generateTranscriptionNotes(jobId: string): Promise<TranscriptNote[]> {
   const res = await fetch(`/api/transcriptions/${encodeURIComponent(jobId)}/notes`, { method: 'POST' });
   if (!res.ok) {

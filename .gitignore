@@ -21,3 +21,5 @@ models/
 local_storage/
 backend/local_storage/
 backend/storage/
+hf_cache/
+frontend/dist/

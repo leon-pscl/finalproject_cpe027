@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Clock, Pause, Play } from 'lucide-react';
 import { validateAudio } from '../services/mock';
 import { formatTimestamp } from '../recording/format';
@@ -125,28 +125,49 @@ function TranscriptionReady() {
   const { fileName, transcript, player, seek, seekProcessed, dspUrl, jobId } = useRecording();
   const [notes, setNotes] = useState<TranscriptNote[]>([]);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [notesProgress, setNotesProgress] = useState(0);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const requestedNotesRef = useRef(false);
   const jumpToSegment = (seconds: number) => {
     if (dspUrl) seekProcessed(seconds);
     else seek(seconds);
   };
 
-  const generateNotes = () => {
+  const generateNotes = useCallback(() => {
     if (!jobId || isGeneratingNotes) return;
     setIsGeneratingNotes(true);
+    setNotesProgress(0);
     setNoteError(null);
+    const timer = window.setInterval(() => {
+      setNotesProgress((previous) => Math.min(90, previous + 6));
+    }, 200);
     generateTranscriptionNotes(jobId)
       .then(setNotes)
       .catch((error: unknown) => {
         setNoteError(error instanceof Error ? error.message : 'Failed to generate notes.');
       })
-      .finally(() => setIsGeneratingNotes(false));
-  };
+      .finally(() => {
+        window.clearInterval(timer);
+        setNotesProgress(100);
+        setIsGeneratingNotes(false);
+      });
+  }, [jobId, isGeneratingNotes]);
+
+  useEffect(() => {
+    if (!jobId || notes.length > 0 || isGeneratingNotes || requestedNotesRef.current) return;
+    requestedNotesRef.current = true;
+    generateNotes();
+  }, [jobId, notes.length, isGeneratingNotes, generateNotes]);
 
   if (transcript.length === 0) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
         <h1 className="text-3xl font-medium">Transcription Ready</h1>
+        {isGeneratingNotes ? (
+          <div className="mt-6 w-full max-w-[20rem]">
+            <LoadingBar label="Generating notes..." progress={notesProgress} />
+          </div>
+        ) : null}
         <div className="mt-6"><BigWave /></div>
         <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
         <p className="mt-4 text-center text-neutral-500">No transcription segments were detected.</p>
@@ -157,6 +178,11 @@ function TranscriptionReady() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
       <h1 className="text-3xl font-medium">Transcription Ready</h1>
+      {isGeneratingNotes ? (
+        <div className="mt-6 w-full max-w-[20rem]">
+          <LoadingBar label="Generating notes..." progress={notesProgress} />
+        </div>
+      ) : null}
       <div className="mt-6"><BigWave /></div>
       <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
 

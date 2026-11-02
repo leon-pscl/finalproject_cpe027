@@ -31,6 +31,7 @@ services:
     volumes: &app-volumes
       - ./storage:/data/storage
       - ./models:/models
+      - ./hf_cache:/root/.cache/huggingface  # persists Hugging Face embedding weights
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
       interval: 10s
@@ -48,7 +49,7 @@ services:
       <<: *backend-environment
       WORKER_ENABLED: "false"
       LOG_LEVEL: "INFO"
-    command: ["python", "-c", "from app.asr import get_model; get_model()"]
+    command: ["python", "-c", "from app.asr import get_model; from app.contracts import Chunk; from app.embedder import Embedder; get_model(); Embedder().embed([Chunk(chunk_id='warm',lecture_id='warm',version='v1',segment_ids=[],start_s=0,end_s=1,text='warm',embedding_model='',embedding_revision='')])"]
 
   frontend:
     build:

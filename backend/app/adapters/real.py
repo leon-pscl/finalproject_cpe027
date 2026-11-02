@@ -18,17 +18,14 @@ from app.adapters.base import (
     Retriever,
     Transcriber,
 )
-from app.contracts import Chunk
-from app.chunker import Chunker as ChunkerImpl
-from app.embedder import Embedder as EmbedderImpl
 from app.asr import Transcript
-
-
+from app.chunker import Chunker as ChunkerImpl
 from app.config import get_settings
+from app.contracts import Chunk
+
 
 class AdapterNotConfigured(RuntimeError):
     """Raised when a real adapter is selected but its provider is not configured."""
-    pass
 
 
 def _require_real_mode(name: str) -> None:
@@ -111,16 +108,13 @@ class RealEmbedder(Embedder):
 
 import json
 import uuid
-from typing import List
 
 from pydantic import BaseModel, Field
 
-from app.adapters.base import Retriever
-from app.adapters.base import Embedder
-from app.adapters.base import Chunker
+from app.adapters.base import Chunker, Embedder
 from app.contracts import Chunk, NoteEntry
-from app.config import get_settings
 from app.vector_store import FAISSVectorStore, faiss
+
 # from app.adapters import adapter_bundle  # removed to avoid circular import
 
 class RealRetriever(Retriever):
@@ -134,7 +128,6 @@ class RealRetriever(Retriever):
 
     def __init__(self) -> None:
         # Storage is needed only for the fallback path.
-        from app.dependencies import get_storage
         self._settings = get_settings()
 
     def _load_vector_store(self, lecture_id: str) -> FAISSVectorStore:
@@ -142,16 +135,15 @@ class RealRetriever(Retriever):
 
     def search(
         self, owner_id: str, lecture_id: str, processing_version: str, question: str
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         # 1️⃣ Load the FAISS store; if unavailable, fallback to JSON without embedding.
         vec_store = self._load_vector_store(lecture_id)
         if faiss is None or getattr(vec_store, "index", None) is None:
             # Fallback – read the raw chunks JSON.
             # Fallback – read the raw chunks JSON using the test‑overridden storage if present.
-            from fastapi import FastAPI
-            from app.main import app as fastapi_app
             # Try FastAPI dependency override for get_storage.
             from app.dependencies import get_storage as default_get_storage
+            from app.main import app as fastapi_app
             get_storage_func = fastapi_app.dependency_overrides.get(default_get_storage, default_get_storage)
             storage = get_storage_func()
             data_bytes, _ = storage.read_object(
@@ -187,17 +179,18 @@ class RealAnswerGenerator(AnswerGenerator):
     def answer(
         self, question: str, authorized_evidence: Sequence[Any], config: dict
     ) -> Any:
+        import uuid
+
         from app.contracts import (
+            AnswerBlock,
             AnswerResponse,
             AnswerStatus,
-            AnswerBlock,
             SourceReference,
         )
-        import uuid
 
         evidence = list(authorized_evidence or [])
         source_ids = []
-        sources: List[SourceReference] = []
+        sources: list[SourceReference] = []
         for chunk in evidence:
             chunk_id = getattr(chunk, "chunk_id", "")
             if chunk_id and str(chunk_id) not in source_ids:
@@ -262,38 +255,15 @@ class RealAnswerGenerator(AnswerGenerator):
         )
 
 
-import uuid
-
-from pydantic import BaseModel, Field
-from typing import List
-
-
 class _GeneratedNote(BaseModel):
-    section: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    reference_chunk_ids: List[str] = Field(default_factory=list)
+    section: str
+    title: str
+    description: str
+    reference_chunk_ids: list[str] = Field(default_factory=list)
 
 
 class _GeneratedNotes(BaseModel):
-    notes: List[_GeneratedNote] = Field(default_factory=list)
-
-
-import uuid
-
-from pydantic import BaseModel, Field
-from typing import List
-
-
-class _GeneratedNote(BaseModel):
-    section: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    reference_chunk_ids: List[str] = Field(default_factory=list)
-
-
-class _GeneratedNotes(BaseModel):
-    notes: List[_GeneratedNote] = Field(default_factory=list)
+    notes: list[_GeneratedNote] = Field(default_factory=list)
 
 
 class RealNotesGenerator(NotesGenerator):
@@ -322,9 +292,6 @@ class RealNotesGenerator(NotesGenerator):
         lc_available = True
         try:
             from langchain_core.prompts import ChatPromptTemplate
-            from langchain_core.output_parsers import (  # unused fallback
-                PydanticOutputParser,
-            )
             from langchain_groq import ChatGroq
         except Exception:
             lc_available = False
@@ -345,7 +312,7 @@ class RealNotesGenerator(NotesGenerator):
                 structured_model = model.with_structured_output(_GeneratedNotes)
 
                 def run_batch(batch):
-                    context = "\n".join("[{}] {}".format(cid, txt) for cid, txt in batch)
+                    context = "\n".join(f"[{cid}] {txt}" for cid, txt in batch)
                     last_error = None
                     for attempt in range(2):
                         try:
@@ -383,7 +350,9 @@ class RealNotesGenerator(NotesGenerator):
                                     ]
                                 )
                             try:
-                                from langchain_core.output_parsers import PydanticOutputParser
+                                from langchain_core.output_parsers import (
+                                    PydanticOutputParser,
+                                )
                             except Exception:
                                 PydanticOutputParser = None
                             format_text = "JSON only"
@@ -398,10 +367,10 @@ class RealNotesGenerator(NotesGenerator):
                         except Exception as exc:
                             last_error = exc
                             if attempt == 1:
-                                raise RuntimeError("structured generation failed: {}".format(exc))
+                                raise RuntimeError(f"structured generation failed: {exc}")
                     return []
 
-                batch_size = 6
+                batch_size = 4
                 batches = [prepared[i:i + batch_size] for i in range(0, len(prepared), batch_size)]
                 for batch in batches:
                     generated = run_batch(batch)
