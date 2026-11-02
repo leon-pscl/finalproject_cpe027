@@ -16,27 +16,31 @@ logger = logging.getLogger(__name__)
 
 from .config import get_settings
 class HFEmbedder:
-    """Embedding using a self‑hosted Sentence‑Transformer model.
+    """Embedding using LangChain's HuggingFace embedding wrapper.
 
     Model: sentence‑transformers/all‑MiniLM‑L6‑v2 (384‑dimensional).
-    The model is loaded once per process (thread‑safe) and cached.
     """
+
     def __init__(self) -> None:
-        # Lazy load the model the first time it is needed.
         self._model = None
 
     def _load(self):
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
-            # Load the MiniLM model (cached after first download).
-            self._model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+            try:
+                from langchain_huggingface import HuggingFaceEmbeddings
+            except ImportError:
+                from langchain_community.embeddings import HuggingFaceEmbeddings  # type: ignore
+            self._model = HuggingFaceEmbeddings(
+                model_name="sentence-transformers/all-MiniLM-L6-v2",
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
         return self._model
 
     def embed(self, chunks: List[Chunk]) -> List[List[float]]:
         model = self._load()
         texts = [c.text for c in chunks]
-        embeddings = model.encode(texts, normalize_embeddings=True)
-        return embeddings.tolist()
+        return model.embed_documents(texts)
 
 class Embedder:
     """Generate embeddings for a list of `Chunk` objects.
