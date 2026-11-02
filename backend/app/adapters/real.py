@@ -187,7 +187,79 @@ class RealAnswerGenerator(AnswerGenerator):
     def answer(
         self, question: str, authorized_evidence: Sequence[Any], config: dict
     ) -> Any:
-        _require_real_mode("RealAnswerGenerator")
+        from app.contracts import (
+            AnswerResponse,
+            AnswerStatus,
+            AnswerBlock,
+            SourceReference,
+        )
+        import uuid
+
+        evidence = list(authorized_evidence or [])
+        source_ids = []
+        sources: List[SourceReference] = []
+        for chunk in evidence:
+            chunk_id = getattr(chunk, "chunk_id", "")
+            if chunk_id and str(chunk_id) not in source_ids:
+                source_ids.append(str(chunk_id))
+            sources.append(
+                SourceReference(
+                    source_id=str(chunk_id or "unknown"),
+                    segment_id=getattr(chunk, "segment_id", None),
+                    start_s=float(getattr(chunk, "start_s", 0.0)),
+                    end_s=float(getattr(chunk, "end_s", 0.0)),
+                    text=str(getattr(chunk, "text", "")),
+                )
+            )
+
+        status = AnswerStatus.ANSWERED
+        answer_text = None
+        try:
+            settings = get_settings()
+            if not getattr(settings, "groq_api_key", None):
+                raise RuntimeError("groq api key not configured")
+            from langchain_core.prompts import ChatPromptTemplate
+            from langchain_groq import ChatGroq
+
+            context_str = "\n\n".join(
+                f"[{getattr(chunk, 'chunk_id', index)}] {getattr(chunk, 'text', str(chunk))}"
+                for index, chunk in enumerate(evidence)
+            )
+            model = ChatGroq(
+                api_key=settings.groq_api_key,
+                model="openai/gpt-oss-20b",
+                temperature=0.0,
+            )
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        "Answer only from the provided context. Say you don't know if missing; cite chunk IDs.",
+                    ),
+                    ("user", "Question: {question}\n\nContext:\n{context}"),
+                ]
+            )
+            answer_text = (prompt | model).invoke(
+                {"question": question, "context": context_str}
+            ).content.strip()
+        except Exception:
+            answer_text = " ".join(str(getattr(chunk, "text", "")) for chunk in evidence)
+            status = AnswerStatus.ANSWERED
+
+        block = AnswerBlock(
+            block_id="b-%s" % uuid.uuid4().hex[:8],
+            text=answer_text,
+            source_ids=source_ids,
+        )
+        return AnswerResponse(
+            answer_id="ans-%s" % uuid.uuid4().hex[:8],
+            lecture_id=str(config.get("lecture_id", "")),
+            version=str(config.get("processing_version", "v1")),
+            processing_mode=str(getattr(get_settings(), "processing_mode", "real")),
+            status=status,
+            blocks=[block],
+            sources=sources,
+        )
 
 
 import uuid
@@ -350,23 +422,36 @@ class RealNotesGenerator(NotesGenerator):
                 lc_available = False
 
         if not lc_available or not notes:
-            from app.answer_generator import GroqAnswerGenerator
+            try:
+                from app.answer_generator import GroqAnswerGenerator
 
-            text = " ".join(text for _, text in prepared)
-            generator = GroqAnswerGenerator()
-            summary = generator.generate(
-                "Summarize in up to 300 words.", [{"text": text, "chunk_id": "summary"}]
-            )
-            notes = [
-                NoteEntry(
-                    note_id="generated-note",
-                    lecture_id=lecture_id,
-                    version=version,
-                    section="Summary",
-                    title="Lecture Summary",
-                    description=summary,
-                    supporting_segment_ids=list(valid_ids),
+                text = " ".join(text for _, text in prepared)
+                generator = GroqAnswerGenerator()
+                summary = generator.generate(
+                    "Summarize in up to 300 words.", [{"text": text, "chunk_id": "summary"}]
                 )
-            ]
+                notes = [
+                    NoteEntry(
+                        note_id="generated-note",
+                        lecture_id=lecture_id,
+                        version=version,
+                        section="Summary",
+                        title="Lecture Summary",
+                        description=summary,
+                        supporting_segment_ids=list(valid_ids),
+                    )
+                ]
+            except Exception:
+                notes = [
+                    NoteEntry(
+                        note_id="generated-note-fallback",
+                        lecture_id=lecture_id,
+                        version=version,
+                        section="Transcript",
+                        title="Processing fallback",
+                        description=" ".join(text for _, text in prepared),
+                        supporting_segment_ids=list(valid_ids),
+                    )
+                ]
 
         return notes

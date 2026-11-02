@@ -29,8 +29,9 @@ from app.dependencies import (
 )
 from app.repositories import LectureRepository
 from app.storage import StorageAdapter
+from app.config import get_settings
 from app.adapters import adapter_bundle
-from app.answer_generator import GroqAnswerGenerator
+
 
 router = APIRouter(tags=["qa"])
 import uuid
@@ -101,15 +102,39 @@ def answer_question(
     all_chunks = retriever.search(user.uid, lecture_id, "v1", request.question)
     top_chunks = all_chunks[: request.top_k]
 
-    # Try to generate an answer via Groq.
+    # Try to generate an answer via LangChain Groq; fall back to retrieved passages.
+    status = AnswerStatus.ANSWERED
     try:
-        answer_gen = GroqAnswerGenerator()
-        answer_text = answer_gen.generate(request.question, top_chunks)
-        status = AnswerStatus.ANSWERED
+        settings = get_settings()
+        if not settings.groq_api_key:
+            raise RuntimeError("groq api key not configured")
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_groq import ChatGroq
+
+        model = ChatGroq(
+            api_key=settings.groq_api_key,
+            model="openai/gpt-oss-20b",
+            temperature=0.0,
+        )
+        context_str = "\n\n".join(
+            f"[Chunk {c.chunk_id}] {c.text}" for c in top_chunks
+        )
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a helpful assistant. Answer using only the provided context. "
+                    "If the context does not contain the answer, say you don't know. "
+                    "Keep answers concise and mention which source chunk each fact came from.",
+                ),
+                ("user", "Question: {question}\n\nContext:\n{context}"),
+            ]
+        )
+        answer_text = (prompt | model).invoke(
+            {"question": request.question, "context": context_str}
+        ).content.strip()
     except Exception as exc:
-        # Fallback: concatenate the retrieved passages.
         answer_text = " ".join(c.text for c in top_chunks)
-        status = AnswerStatus.ANSWERED
         import logging
         logging.getLogger(__name__).warning(
             "LLM generation failed (%s); falling back to retrieved passages", exc

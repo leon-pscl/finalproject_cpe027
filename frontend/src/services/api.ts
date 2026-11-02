@@ -837,3 +837,28 @@ export async function deleteJob(id: string): Promise<void> {
 
 export const toTranscript = (job: JobStatus): TranscriptSegment[] =>
   job.segments.map((s) => ({ id: s.id, start: s.start, end: s.end, speaker: 'Lecturer', text: s.text, confidence: s.confidence }));
+
+export type TranscriptNote = {
+  note_id: string;
+  lecture_id: string;
+  version: string;
+  section: string;
+  title: string;
+  description: string;
+  supporting_segment_ids: string[];
+};
+
+export async function generateTranscriptionNotes(jobId: string): Promise<TranscriptNote[]> {
+  const res = await fetch(`/api/transcriptions/${encodeURIComponent(jobId)}/notes`, { method: 'POST' });
+  if (!res.ok) {
+    let detail = `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === 'string') detail = body.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}

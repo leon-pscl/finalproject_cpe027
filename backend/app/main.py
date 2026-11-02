@@ -11,7 +11,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from app.contracts import ErrorCode
+from app.contracts import ErrorCode, NoteEntry, Chunk
+from app.asr import Transcript
+from app.chunker import Chunker
+from app.embedder import Embedder
 from app.routers import lectures, storage, qa, notes, export, delete, dsp
 
 
@@ -209,6 +212,33 @@ def get_transcription_audio(job_id: str, store: JobStore = Depends(get_store)) -
     if not path.is_file():
         raise HTTPException(404, "Processed audio not found.")
     return FileResponse(path, media_type="audio/wav", filename=f"dsp-{job_id}.wav")
+
+
+@app.post("/api/transcriptions/{job_id}/notes", response_model=list[NoteEntry], tags=["transcription"])
+def generate_transcription_notes(job_id: str, store: JobStore = Depends(get_store)) -> list[NoteEntry]:  # noqa: B008
+    job = store.get(job_id)
+    if job is None:
+        raise HTTPException(404, "Transcription not found.")
+    if job.status != "completed":
+        raise HTTPException(409, "Transcription is not complete.")
+
+    from app.adapters import adapter_bundle
+    from app.vector_store import FAISSVectorStore
+
+    settings = get_settings()
+    transcript = Transcript(
+        language=job.language, duration=job.duration, segments=list(job.segments)
+    )
+    chunks = Chunker().chunk(transcript, job.id, "v1")
+    if chunks:
+        vectors = Embedder().embed(chunks)
+        FAISSVectorStore(settings.local_storage_root, job.id).add(
+            [chunk.model_dump() for chunk in chunks], vectors
+        )
+    notes_gen = adapter_bundle()["notes"]
+    return notes_gen.generate(
+        chunks, {"lecture_id": job.id, "processing_version": "v1"}
+    ) or []
 
 
 @app.delete("/api/transcriptions/{job_id}", status_code=204, tags=["transcription"])

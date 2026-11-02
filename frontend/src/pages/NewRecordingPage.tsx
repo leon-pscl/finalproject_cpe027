@@ -3,6 +3,7 @@ import { Clock, Pause, Play } from 'lucide-react';
 import { validateAudio } from '../services/mock';
 import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
+import { generateTranscriptionNotes, type TranscriptNote } from '../services/api';
 
 /* ---------- Frame 1: Input Recording ---------- */
 function DropZone({ onFile, fileError }: { onFile: (file: File) => void; fileError: string | null }) {
@@ -121,10 +122,25 @@ function MiniWave({ seed }: { seed: number }) {
 }
 
 function TranscriptionReady() {
-  const { fileName, transcript, player, seek, seekProcessed, dspUrl } = useRecording();
+  const { fileName, transcript, player, seek, seekProcessed, dspUrl, jobId } = useRecording();
+  const [notes, setNotes] = useState<TranscriptNote[]>([]);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const jumpToSegment = (seconds: number) => {
     if (dspUrl) seekProcessed(seconds);
     else seek(seconds);
+  };
+
+  const generateNotes = () => {
+    if (!jobId || isGeneratingNotes) return;
+    setIsGeneratingNotes(true);
+    setNoteError(null);
+    generateTranscriptionNotes(jobId)
+      .then(setNotes)
+      .catch((error: unknown) => {
+        setNoteError(error instanceof Error ? error.message : 'Failed to generate notes.');
+      })
+      .finally(() => setIsGeneratingNotes(false));
   };
 
   if (transcript.length === 0) {
@@ -173,6 +189,41 @@ function TranscriptionReady() {
           );
         })}
       </ul>
+
+      {jobId ? (
+        <div className="mt-8 w-full rounded border border-ink bg-paper p-4 text-left">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-mono text-sm uppercase tracking-widest">Generated Notes</h2>
+            <button
+              type="button"
+              onClick={generateNotes}
+              disabled={isGeneratingNotes}
+              className="rounded border border-ink bg-ink px-3 py-1 font-mono text-xs text-paper hover:bg-neutral-800 disabled:opacity-50"
+            >
+              {isGeneratingNotes ? 'Generating…' : 'Generate notes'}
+            </button>
+          </div>
+          {noteError ? <p className="mb-3 text-sm text-red-700">{noteError}</p> : null}
+          {notes.length === 0 ? (
+            <p className="text-sm text-neutral-500">No notes generated yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {notes.map((note) => (
+                <article key={note.note_id} className="rounded border border-neutral-300 p-3">
+                  <p className="font-mono text-xs uppercase tracking-wide text-neutral-500">{note.section}</p>
+                  <h3 className="mt-1 font-mono text-sm font-medium">{note.title}</h3>
+                  <p className="mt-2 text-sm leading-6">{note.description}</p>
+                  {note.supporting_segment_ids.length ? (
+                    <p className="mt-2 font-mono text-xs text-neutral-500">
+                      References: {note.supporting_segment_ids.join(', ')}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

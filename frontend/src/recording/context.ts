@@ -45,6 +45,7 @@ export type RecordingContextValue = {
   transcript: TranscriptSegment[];
   messages: ChatMessage[];
   player: PlayerState;
+  jobId: string | null;
 
   /** Which tab the right panel shows. */
   tab: Tab;

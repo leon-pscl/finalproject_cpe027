@@ -425,6 +425,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       transcript: active?.transcript ?? [],
       messages: active?.messages ?? [],
       player: { ...playerState, duration: playerState.duration || active?.duration || 0 },
+      jobId: active?.jobId ?? null,
       tab,
       setTab,
       newNote,
