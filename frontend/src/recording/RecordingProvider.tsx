@@ -212,6 +212,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               );
             }
             if (job.status !== 'completed') {
+              setChats((current) =>
+                current.map((item) =>
+                  item.id === id && (item.stage === 'dsp' || item.stage === 'transcribing')
+                    ? { ...item, stage: (job.phase === 'transcribing' ? 'transcribing' : 'dsp') as Stage }
+                    : item,
+                ),
+              );
               setProgressById((current) => ({ ...current, [id]: Math.round(job.progress * 100) }));
               return;
             }

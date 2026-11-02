@@ -91,9 +91,6 @@ describe('recording flow (wireframes 1-5)', () => {
     await user.click(screen.getByRole('tab', { name: /transcriptions/i }));
     const panel = screen.getByRole('tabpanel');
     expect(within(panel).getByText(/audio source: lecture\.wav/i)).toBeInTheDocument();
-    expect(within(panel).getByText(/playback speed: 1x/i)).toBeInTheDocument();
-    await user.click(within(panel).getByRole('button', { name: /change speed/i }));
-    expect(within(panel).getByText(/playback speed: 1\.25x/i)).toBeInTheDocument();
   }, 20000);
 
   it('shows the server error and returns to the drop zone when transcription cannot start', async () => {

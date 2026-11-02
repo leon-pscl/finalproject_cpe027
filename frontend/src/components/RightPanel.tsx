@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Bot, Gauge, Pause, PanelRightClose, Play } from 'lucide-react';
+import { Bot, Pause, PanelRightClose, Play } from 'lucide-react';
 import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
@@ -15,10 +15,8 @@ function PlayerRow({
   playing,
   current,
   duration,
-  speed,
   onPlay,
   onPause,
-  onSpeed,
   onSeek,
   label,
 }: {
@@ -26,28 +24,19 @@ function PlayerRow({
   playing: boolean;
   current: number;
   duration: number;
-  speed?: number;
   onPlay: () => void;
   onPause: () => void;
-  onSpeed?: () => void;
   onSeek: (seconds: number) => void;
   label: string;
 }) {
   return (
-    <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
       <button type="button" aria-label={`Play ${label}`.trim()} onClick={onPlay} disabled={!ready || playing} className={rowBtn}>
         <Play size={14} aria-hidden="true" />
       </button>
       <button type="button" aria-label={`Pause ${label}`.trim()} onClick={onPause} disabled={!ready || !playing} className={rowBtn}>
         <Pause size={14} aria-hidden="true" />
       </button>
-      {onSpeed ? (
-        <button type="button" aria-label={`Change speed, now ${speed}x`} onClick={onSpeed} className={rowBtn}>
-          <Gauge size={14} aria-hidden="true" />
-        </button>
-      ) : (
-        <span />
-      )}
       <input
         type="range"
         min={0}
@@ -69,7 +58,7 @@ function PlayerRow({
 }
 
 function PlayerCard() {
-  const { fileName, stage, player, play, pause, cycleSpeed, seek, dspUrl } = useRecording();
+  const { fileName, stage, player, play, pause, seek, dspUrl } = useRecording();
   const hasAudio = fileName !== null;
   const ready = stage === 'ready';
 
@@ -85,17 +74,14 @@ function PlayerCard() {
         <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-full ${ready ? 'bg-ink' : 'bg-neutral-500'}`} />
         {ready ? 'Enhanced (DSP Active)' : 'Processing…'}
       </p>
-      <p>Playback Speed: {player.speed}x</p>
       <PlayerRow
         label="raw audio"
         ready={ready}
         playing={player.playing}
         current={player.currentTime}
         duration={player.duration}
-        speed={player.speed}
         onPlay={play}
         onPause={pause}
-        onSpeed={cycleSpeed}
         onSeek={seek}
       />
       {dspUrl ? (
