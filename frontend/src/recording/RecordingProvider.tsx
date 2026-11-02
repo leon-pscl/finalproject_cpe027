@@ -89,6 +89,17 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [fileError, setFileError] = useState<string | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState>(idlePlayer);
   const [dspUrl, setDspUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !dspUrl) return;
+    try {
+      audio.src = dspUrl;
+      audio.load();
+    } catch {
+      /* keep original audio if processed URL cannot be used */
+    }
+  }, [dspUrl]);
   const [tab, setTab] = useState<Tab>('chat');
 
   const chatsRef = useRef(chats);
@@ -300,6 +311,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
         return Promise.resolve();
       }
       setFileError(null);
+      setDspUrl(null);
 
       let target = chatsRef.current.find((chat) => chat.id === activeId);
       if (!target || target.stage !== 'idle' || target.fileName) {
