@@ -778,7 +778,14 @@ function guessContentType(fileName: string): string {
   }
   return 'application/octet-stream';
 }
-import type { TranscriptSegment } from './mock';
+export type TranscriptSegment = {
+  id: string;
+  start: number;
+  end?: number;
+  speaker: string;
+  text: string;
+  confidence: number;
+};
 
 export type JobStatus = {
   id: string;

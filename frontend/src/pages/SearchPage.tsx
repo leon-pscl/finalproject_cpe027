@@ -3,7 +3,7 @@ import { Search as SearchIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NOTES_REQUEST } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
-import { formatTimestamp } from '../services/mock';
+import { formatTimestamp } from '../recording/format';
 
 type Hit = { key: string; label: string; text: string };
 type Result = { chatId: string; title: string; hits: Hit[] };

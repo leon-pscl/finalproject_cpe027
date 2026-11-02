@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Clock, Pause, Play } from 'lucide-react';
-import { formatTimestamp, validateAudio } from '../services/mock';
+import { validateAudio } from '../services/mock';
+import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
 
 /* ---------- Frame 1: Input Recording ---------- */

@@ -1,60 +1,111 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Bot, Gauge, Pause, PanelRightClose, Play } from 'lucide-react';
-import { formatTimestamp } from '../services/mock';
+import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
 
 const playerBtn =
   'flex h-8 items-center gap-1.5 rounded px-2 text-xs font-mono hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
 
+const rowBtn =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-ink bg-paper text-ink hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-40';
+
+function PlayerRow({
+  ready,
+  playing,
+  current,
+  duration,
+  speed,
+  onPlay,
+  onPause,
+  onSpeed,
+  onSeek,
+  label,
+}: {
+  ready: boolean;
+  playing: boolean;
+  current: number;
+  duration: number;
+  speed?: number;
+  onPlay: () => void;
+  onPause: () => void;
+  onSpeed?: () => void;
+  onSeek: (seconds: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+      <button type="button" aria-label={`Play ${label}`.trim()} onClick={onPlay} disabled={!ready || playing} className={rowBtn}>
+        <Play size={14} aria-hidden="true" />
+      </button>
+      <button type="button" aria-label={`Pause ${label}`.trim()} onClick={onPause} disabled={!ready || !playing} className={rowBtn}>
+        <Pause size={14} aria-hidden="true" />
+      </button>
+      {onSpeed ? (
+        <button type="button" aria-label={`Change speed, now ${speed}x`} onClick={onSpeed} className={rowBtn}>
+          <Gauge size={14} aria-hidden="true" />
+        </button>
+      ) : (
+        <span />
+      )}
+      <input
+        type="range"
+        min={0}
+        max={duration || 0}
+        step={0.1}
+        value={current}
+        onChange={(event) => {
+          const next = Number(event.target.value);
+          onSeek(next);
+        }}
+        aria-label={`${label} position`.trim()}
+        className="h-1 min-w-0 w-full accent-ink"
+      />
+      <span className="shrink-0 font-mono text-xs text-neutral-500">
+        {formatTimestamp(current)} / {formatTimestamp(duration)}
+      </span>
+    </div>
+  );
+}
+
 function PlayerCard() {
-  const { fileName, stage, player, play, pause, cycleSpeed, dspUrl } = useRecording();
+  const { fileName, stage, player, play, pause, cycleSpeed, seek, dspUrl } = useRecording();
   const hasAudio = fileName !== null;
+  const ready = stage === 'ready';
 
   if (!hasAudio) {
     return <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>;
   }
 
-  return (<>
-    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5">
+  return (
+    <div className="space-y-3 font-mono text-xs leading-5">
       <p className="break-all">Audio Source: {fileName}</p>
       <p className="flex items-center gap-1.5">
         Status:
-        <span
-          aria-hidden="true"
-          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-ink' : 'bg-neutral-500'}`}
-        />
-        {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
+        <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-full ${ready ? 'bg-ink' : 'bg-neutral-500'}`} />
+        {ready ? 'Enhanced (DSP Active)' : 'Processing…'}
       </p>
-      <p>(Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})</p>
-      <p>DSP Playback Speed: {player.speed}x</p>
-      <div className="mt-4 flex items-center justify-between">
-        <button type="button" onClick={cycleSpeed} className={playerBtn} aria-label={`Change speed, now ${player.speed}x`}>
-          <Gauge size={14} aria-hidden="true" /> Speed
-        </button>
-        <button type="button" onClick={play} disabled={stage !== 'ready' || player.playing} className={playerBtn}>
-          <Play size={14} aria-hidden="true" /> Play
-        </button>
-        <button type="button" onClick={pause} disabled={stage !== 'ready' || !player.playing} className={playerBtn}>
-          <Pause size={14} aria-hidden="true" /> Pause
-        </button>
-      </div>
+      <p>Playback Speed: {player.speed}x</p>
+      <PlayerRow
+        label="raw audio"
+        ready={ready}
+        playing={player.playing}
+        current={player.currentTime}
+        duration={player.duration}
+        speed={player.speed}
+        onPlay={play}
+        onPause={pause}
+        onSpeed={cycleSpeed}
+        onSeek={seek}
+      />
+      {dspUrl ? (
+        <>
+          <p className="break-all">Processed Audio: {fileName}</p>
+          <ProcessedAudioPlayer url={dspUrl} />
+        </>
+      ) : null}
     </div>
-    {/* DSP‑enhanced player */}
-    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5 mt-4">
-      <p className="break-all">Processed Audio: {fileName}</p>
-      <p className="flex items-center gap-1.5">
-        Status:
-        <span
-          aria-hidden="true"
-          className={`inline-block h-2.5 w-2.5 rounded-full ${stage === 'ready' ? 'bg-ink' : 'bg-neutral-500'}`}
-        />
-        {stage === 'ready' ? 'Enhanced (DSP Active)' : 'Processing…'}
-      </p>
-      <p>(Current Time: {formatTimestamp(player.currentTime)} / {formatTimestamp(player.duration)})</p>
-      {dspUrl && <ProcessedAudioPlayer url={dspUrl} />}
-    </div>
-  </>);
+  );
 }
 
 function ProcessedAudioPlayer({ url }: { url: string }) {
@@ -79,45 +130,36 @@ function ProcessedAudioPlayer({ url }: { url: string }) {
     };
   }, [url]);
 
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      void audioRef.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    }
+  };
+
   return (
-    <div className="rounded-2xl border border-ink bg-paper px-4 py-4 font-mono text-xs leading-5">
+    <div className="space-y-2 font-mono text-xs leading-5">
       <audio ref={audioRef} src={url} preload="metadata" className="sr-only" />
       <p className="text-neutral-500">Processed audio</p>
-      <div className="mt-3 grid min-w-0 grid-cols-[auto,minmax(0,1fr),auto] items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            if (!audioRef.current) return;
-            if (playing) {
-              audioRef.current.pause();
-            } else {
-              void audioRef.current.play();
-            }
-            setPlaying(!playing);
-          }}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded border border-ink bg-ink px-3 font-mono text-xs font-medium text-paper hover:bg-neutral-800"
-        >
-          {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={current}
-          onChange={(event) => {
-            const next = Number(event.target.value);
-            if (audioRef.current) audioRef.current.currentTime = next;
-            setCurrent(next);
-          }}
-          aria-label="Processed audio position"
-          className="min-w-0 h-1 w-full accent-ink"
-        />
-        <span className="shrink-0 font-mono text-xs text-neutral-500">
-          {formatTimestamp(current)} / {formatTimestamp(duration)}
-        </span>
-      </div>
+      <PlayerRow
+        label="processed audio"
+        ready
+        playing={playing}
+        current={current}
+        duration={duration}
+        onPlay={togglePlay}
+        onPause={() => {
+          audioRef.current?.pause();
+          setPlaying(false);
+        }}
+        onSeek={(next) => {
+          if (audioRef.current) audioRef.current.currentTime = next;
+          setCurrent(next);
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/useAuth';
-import { formatTimestamp, validateAudio, type TranscriptSegment } from '../services/mock';
+import { validateAudio } from '../services/mock';
+import { formatTimestamp } from './format';
+import type { TranscriptSegment } from '../services/api';
 import { deleteJob, fetchJob, submitTranscription, toTranscript } from '../services/api';
 import { deleteAudio, loadAudio, saveAudio } from './audioStore';
 import { RecordingContext, type ChatMessage, type ChatSession, type PlayerState, type Stage, type Tab } from './context';

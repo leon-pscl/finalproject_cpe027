@@ -16,4 +16,7 @@ eval/results/
 *.stale
 eval/reports/*.pre-resume.csv
 
-storage/asr-dsp
+storage/
+local_storage/
+backend/local_storage/
+backend/storage/

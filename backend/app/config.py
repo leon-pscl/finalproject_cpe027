@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     chunk_seconds: int = Field(default=30, gt=1, description="Chunk length in seconds")
     chunk_overlap_seconds: int = Field(default=5, ge=0, description="Overlap between chunks")
 
-    max_duration_minutes: int = Field(default=60, gt=0, le=240)
+    max_duration_minutes: int = Field(default=240, gt=0, le=240)
     per_user_daily_job_limit: int = Field(default=5, gt=0)
     max_upload_mb: int = Field(default=512, gt=0, description="Maximum upload size in megabytes")
     per_user_lecture_limit: int = Field(default=25, gt=0)
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # Pretrained Whisper model run through faster-whisper (CTranslate2).
     # tiny | base | small | medium | large-v3 | distil-large-v3 ...
-    whisper_model: str = "whisper-large-v3"
+    whisper_model: str = "tiny"
     whisper_device: str = "auto"  # auto | cpu | cuda
     whisper_compute_type: str = "int8"  # int8 for CPU; float16 for GPU
     # "" (empty) = auto-detect, needed for Filipino/English code-switching; or force "en" / "tl".

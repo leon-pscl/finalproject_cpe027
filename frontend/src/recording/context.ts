@@ -1,6 +1,6 @@
 // TESTING DEPLOYMENT
 import { createContext } from 'react';
-import type { TranscriptSegment } from '../services/mock';
+import type { TranscriptSegment } from '../services/api';
 
 export type Stage = 'idle' | 'dsp' | 'transcribing' | 'generatingNotes' | 'ready';
 export type Tab = 'chat' | 'transcriptions';

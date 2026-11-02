@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import StatusPill from '../components/StatusPill';
 import { timeAgo } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
-import { formatTimestamp } from '../services/mock';
+import { formatTimestamp } from '../recording/format';
 
 export default function RecordingsPage() {
   const { chats, selectChat, deleteChat, newNote } = useRecording();

@@ -1,6 +1,16 @@
 /** The message the app sends on the user's behalf when note generation starts. */
 export const NOTES_REQUEST = 'Generate structured study notes with key definitions.';
 
+export function formatTimestamp(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const secs = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${mins}:${secs}`;
+}
+
 export function stripExtension(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot > 0 ? name.slice(0, dot) : name;

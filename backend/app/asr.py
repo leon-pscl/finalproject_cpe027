@@ -66,6 +66,12 @@ def get_model():
     global _model
     with _model_lock:
         if _model is None:
+            import os
+
+            os.environ.setdefault("OMP_NUM_THREADS", "1")
+            os.environ.setdefault("MKL_NUM_THREADS", "1")
+            os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
             from faster_whisper import WhisperModel
 
             s = get_settings()
@@ -74,6 +80,8 @@ def get_model():
                 device=s.whisper_device,
                 compute_type=s.whisper_compute_type,
                 download_root=s.model_cache_dir,
+                cpu_threads=1,
+                num_workers=1,
             )
         return _model
 
