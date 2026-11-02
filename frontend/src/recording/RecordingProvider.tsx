@@ -384,7 +384,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               firstSource && typeof firstSource.start_s === 'number'
                 ? `[${formatTimestamp(firstSource.start_s)}] `
                 : '';
-            answerText = citation && !generated.includes(citation.trim()) ? `${citation}${generated}` : generated;
+            answerText = generated;
           }
         } catch {
           // Keep the local fallback if the backend is unavailable.

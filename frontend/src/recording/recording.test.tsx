@@ -94,7 +94,7 @@ describe('recording flow (wireframes 1-5)', () => {
     // Chat: answer comes from the transcription answer endpoint, not timestamp fallback.
     await user.type(screen.getByLabelText(/message/i), 'What did the lecturer say about noise reduction?');
     await user.keyboard('{Enter}');
-    expect(await screen.findByText(/^\[00:12\] The lecturer connected noise reduction/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^The lecturer connected noise reduction/i)).toBeInTheDocument();
 
     // Transcriptions tab: transcript and player card are available there.
     await user.click(screen.getByRole('tab', { name: /transcriptions/i }));

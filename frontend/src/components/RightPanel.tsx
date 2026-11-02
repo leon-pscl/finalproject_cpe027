@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Bot, Clock, Pause, PanelRightClose, Play } from 'lucide-react';
 import { formatTimestamp } from '../recording/format';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { normalizeMath } from '../services/notesMarkdown';
+import 'katex/dist/katex.min.css';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
 
@@ -77,7 +83,7 @@ function TranscriptionsPanel() {
   return (
     <div className="space-y-4 font-mono text-xs leading-5">
       {hasAudio ? (
-        <>
+        <div className="sticky top-0 z-10 -mx-1 mb-3 border-b border-neutral-200 bg-paper px-1 pb-2">
           <p className="break-all">Audio Source: {fileName}</p>
           <p className="flex items-center gap-1.5">
             Status:
@@ -95,7 +101,7 @@ function TranscriptionsPanel() {
             onSeek={seek}
           />
           {dspUrl ? <ProcessedAudioPlayer url={dspUrl} /> : null}
-        </>
+        </div>
       ) : null}
 
       {transcript.length > 0 && notesReady ? (
@@ -252,13 +258,37 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
             ) : (
               messages.map((message) =>
                 message.from === 'you' ? (
-                  <p key={message.id} className="rounded-md bg-neutral-200 px-3 py-2">
+                  <p key={message.id} className="whitespace-pre-wrap rounded-md bg-neutral-200 px-3 py-2">
                     {message.text}
                   </p>
                 ) : (
                   <div key={message.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
                     <Bot size={18} aria-label="Assistant" className="mt-0.5" />
-                    <p>{message.text}</p>
+                    <div className="max-w-none font-mono text-sm leading-6">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
+                          p: ({ children }) => <p className="mb-2 whitespace-pre-wrap">{children}</p>,
+                          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
+                          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                          li: ({ children }) => <li>{children}</li>,
+                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          em: ({ children }) => <em className="italic">{children}</em>,
+                          code: ({ children }) => <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs">{children}</code>,
+                          h1: ({ children }) => <h1 className="mb-2 text-base font-semibold">{children}</h1>,
+                          h2: ({ children }) => <h2 className="mb-2 text-sm font-semibold">{children}</h2>,
+                          h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold">{children}</h3>,
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
+                        {normalizeMath(message.text)}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 ),
               )

@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { Download, Pause, Play } from 'lucide-react';
 import { validateAudio } from '../services/mock';
 import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { normalizeMath } from '../services/notesMarkdown';
+import 'katex/dist/katex.min.css';
 import { generateTranscriptionNotes, type TranscriptNote } from '../services/api';
+import CodeMirror from '@uiw/react-codemirror';
+import { markdown } from '@codemirror/lang-markdown';
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
+import { RangeSetBuilder } from '@codemirror/state';
+import { notesToMarkdown, parseReferences, frontmatterValue, removeFrontmatterTag } from '../services/notesMarkdown';
 
 /* ---------- Frame 1: Input Recording ---------- */
 function DropZone({ onFile, fileError }: { onFile: (file: File) => void; fileError: string | null }) {
@@ -106,16 +117,113 @@ function BigWave() {
   );
 }
 
+const footnoteClass = 'cm-note-footnote';
+
+function createFootnoteExtension(
+  references: Map<number, { number: number; segmentId: string; text: string; start: number }>,
+  onJump: (reference: { number: number; segmentId: string; text: string; start: number }) => void,
+) {
+  const buildDecorations = (view: EditorView): any => {
+    const builder = new RangeSetBuilder<Decoration>();
+    for (const range of view.visibleRanges) {
+      const text = view.state.doc.sliceString(range.from, range.to);
+      const pattern = /\\[(\\d+)\\]/g;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        const number = Number(match[1]);
+        const reference = references.get(number);
+        if (!reference) continue;
+        const from = range.from + match.index;
+        const to = from + match[0].length;
+        builder.add(
+          from,
+          to,
+          Decoration.mark({
+            class: footnoteClass,
+            attributes: {
+              title: reference.text,
+              'data-note-ref': String(number),
+            },
+          }),
+        );
+      }
+    }
+    return builder.finish();
+  };
+
+  return ViewPlugin.fromClass(
+    class {
+      decorations: any;
+      constructor(view: EditorView) {
+        this.decorations = buildDecorations(view);
+      }
+      update(update: any) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = buildDecorations(update.view);
+        }
+      }
+    },
+    {
+      decorations: (instance: any) => instance.decorations,
+      eventHandlers: {
+        click(event: MouseEvent, view: EditorView) {
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
+          if (pos === null) return false;
+          const line = view.state.doc.lineAt(pos);
+          const offset = pos - line.from;
+          const pattern = /\\[(\\d+)\\]/g;
+          let match: RegExpExecArray | null;
+          while ((match = pattern.exec(line.text)) !== null) {
+            if (offset >= match.index && offset <= match.index + match[0].length) {
+              const reference = references.get(Number(match[1]));
+              if (reference) {
+                onJump(reference);
+                return true;
+              }
+            }
+          }
+          return false;
+        },
+      },
+    },
+  );
+}
+
 function TranscriptionReady() {
-  const { fileName, transcript, jobId, setNotesReady } = useRecording();
-  const [notes, setNotes] = useState<TranscriptNote[]>([]);
+  const { fileName, transcript, jobId, setNotesReady, setTab, seek, seekProcessed, dspUrl } = useRecording();
+  const [noteMarkdown, setNoteMarkdown] = useState('');
+  const [generatedMarkdown, setGeneratedMarkdown] = useState('');
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
   const [notesProgress, setNotesProgress] = useState(0);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteEdited, setNoteEdited] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [noteViewMode, setNoteViewMode] = useState<'document' | 'source'>('document');
   const requestedNotesRef = useRef(false);
+  const autosaveKey = jobId ? `lectureflow.notes.${jobId}` : null;
+
+  useEffect(() => {
+    if (!autosaveKey) return;
+    const saved = window.localStorage.getItem(autosaveKey);
+    if (saved) {
+      setNoteMarkdown(saved);
+      setNoteEdited(true);
+    }
+  }, [autosaveKey]);
+
+  useEffect(() => {
+    if (!autosaveKey || !noteMarkdown) return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(autosaveKey, noteMarkdown);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [noteMarkdown, autosaveKey]);
 
   const generateNotes = useCallback(() => {
     if (!jobId || isGeneratingNotes) return;
+    if (noteEdited && noteMarkdown.trim() && noteMarkdown !== generatedMarkdown) {
+      if (!window.confirm('Replace the generated notes? Your unsaved edits will be lost.')) return;
+    }
     setIsGeneratingNotes(true);
     setNotesProgress(0);
     setNoteError(null);
@@ -124,7 +232,10 @@ function TranscriptionReady() {
     }, 200);
     generateTranscriptionNotes(jobId)
       .then((nextNotes) => {
-        setNotes(nextNotes);
+        const markdown = notesToMarkdown(nextNotes, fileName ?? 'lecture', transcript);
+        setNoteMarkdown(markdown);
+        setGeneratedMarkdown(markdown);
+        setNoteEdited(false);
         setNotesReady(true);
       })
       .catch((error: unknown) => {
@@ -136,21 +247,50 @@ function TranscriptionReady() {
         setNotesProgress(100);
         setIsGeneratingNotes(false);
       });
-  }, [jobId, isGeneratingNotes, setNotesReady]);
-
-  const updateNote = useCallback((noteId: string, patch: Partial<TranscriptNote>) => {
-    setNotes((existing) => existing.map((item) => (item.note_id === noteId ? { ...item, ...patch } : item)));
-  }, []);
+  }, [jobId, isGeneratingNotes, noteEdited, noteMarkdown, generatedMarkdown, fileName, transcript, setNotesReady]);
 
   useEffect(() => {
-    if (!jobId || notes.length > 0 || isGeneratingNotes || requestedNotesRef.current) return;
+    if (!jobId || noteMarkdown || isGeneratingNotes || requestedNotesRef.current) return;
     requestedNotesRef.current = true;
     generateNotes();
-  }, [jobId, notes.length, isGeneratingNotes, generateNotes]);
+  }, [jobId, noteMarkdown, isGeneratingNotes, generateNotes]);
+
+  const references = parseReferences(noteMarkdown, transcript);
+  const referenceByNumber = useMemo(() => new Map(references.map((reference) => [reference.number, reference])), [references]);
+  const jumpToReference = useCallback(
+    (reference: { number: number; segmentId: string; text: string; start: number }) => {
+      setNotesReady(true);
+      setTab('transcriptions');
+      if (dspUrl) seekProcessed(reference.start);
+      else seek(reference.start);
+    },
+    [dspUrl, seek, seekProcessed, setNotesReady, setTab],
+  );
+  const footnoteExtension = useMemo(
+    () => createFootnoteExtension(referenceByNumber, jumpToReference),
+    [referenceByNumber, jumpToReference],
+  );
+  const noteTags = frontmatterValue(noteMarkdown, 'tags')
+    .replace(/^\\[|\\]$/g, '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  const downloadNotes = useCallback(() => {
+    const blob = new Blob([noteMarkdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${(fileName ?? 'notes').replace(/[^a-z0-9._-]/gi, '-') || 'notes'}.md`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }, [noteMarkdown, fileName]);
 
   if (transcript.length === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center">
         <h1 className="text-3xl font-medium">Transcription Ready</h1>
         {isGeneratingNotes ? (
           <div className="mt-6 w-full max-w-[20rem]">
@@ -165,14 +305,14 @@ function TranscriptionReady() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
-      <h1 className="text-3xl font-medium">Transcription Ready</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-col items-center">
+      <h1 className="text-3xl font-medium">{noteMarkdown ? 'Notes Generated from Transcript' : 'Transcription Ready'}</h1>
       {isGeneratingNotes ? (
         <div className="mt-6 w-full max-w-[20rem]">
           <LoadingBar label="Generating notes..." progress={notesProgress} />
         </div>
       ) : null}
-      <div className="mt-6"><BigWave /></div>
+      {!noteMarkdown ? <div className="mt-6"><BigWave /></div> : null}
       <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
 
 {jobId ? (
@@ -185,43 +325,159 @@ function TranscriptionReady() {
               disabled={isGeneratingNotes}
               className="rounded border border-ink bg-ink px-3 py-1 font-mono text-xs text-paper hover:bg-neutral-800 disabled:opacity-50"
             >
-              {isGeneratingNotes ? 'Generating…' : 'Generate notes'}
+              {isGeneratingNotes ? 'Generating...' : 'Generate notes'}
             </button>
           </div>
           {noteError ? <p className="text-sm text-red-700">{noteError}</p> : null}
-          {notes.length === 0 ? (
-            <p className="text-sm text-neutral-500">No notes generated yet.</p>
-          ) : (
-            <div className="space-y-6">
-              {notes.map((note, index) => (
-                <div key={note.note_id} className="space-y-2">
-                  <input
-                    value={note.section}
-                    onChange={(event) => updateNote(note.note_id, { section: event.target.value })}
-                    aria-label={`Generated note ${index + 1} section`}
-                    className="w-full border-0 bg-transparent font-mono text-xs uppercase tracking-wide text-neutral-500 focus:outline-none focus:ring-0"
-                  />
-                  <input
-                    value={note.title}
-                    onChange={(event) => updateNote(note.note_id, { title: event.target.value })}
-                    aria-label={`Generated note ${index + 1} title`}
-                    className="w-full border-0 bg-transparent font-mono text-sm font-medium focus:outline-none focus:ring-0"
-                  />
-                  <textarea
-                    value={note.description}
-                    onChange={(event) => updateNote(note.note_id, { description: event.target.value })}
-                    aria-label={`Generated note ${index + 1} description`}
-                    rows={3}
-                    className="w-full resize-y border border-neutral-300 bg-paper p-2 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ink"
-                  />
-                  {note.supporting_segment_ids.length ? (
-                    <p className="font-mono text-xs text-neutral-500">
-                      References: {note.supporting_segment_ids.join(', ')}
-                    </p>
-                  ) : null}
+          {noteMarkdown ? (
+            <div className="space-y-4">
+              <details open={propertiesOpen} className="rounded border border-neutral-300 bg-paper p-3">
+                <summary className="cursor-pointer font-mono text-xs uppercase tracking-wide text-neutral-500">Properties</summary>
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs uppercase text-neutral-500">created</span>
+                    <span className="font-mono text-xs">{frontmatterValue(noteMarkdown, 'created') || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs uppercase text-neutral-500">updated</span>
+                    <span className="font-mono text-xs">{frontmatterValue(noteMarkdown, 'updated') || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs uppercase text-neutral-500">tags</span>
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {noteTags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            const next = removeFrontmatterTag(noteMarkdown, tag);
+                            setNoteMarkdown(next);
+                            setNoteEdited(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-paper px-2 py-0.5 font-mono text-xs text-neutral-600 hover:bg-neutral-200"
+                        >
+                          {tag} <span aria-hidden="true">x</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs uppercase text-neutral-500">type</span>
+                    <span className="font-mono text-xs">{frontmatterValue(noteMarkdown, 'type') || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs uppercase text-neutral-500">status</span>
+                    <span className="font-mono text-xs">{frontmatterValue(noteMarkdown, 'status') || '-'}</span>
+                  </div>
                 </div>
-              ))}
+              </details>
+
+              <div className="rounded border border-neutral-300 bg-paper">
+                <div className="flex items-center gap-1 border-b border-neutral-300 p-1">
+                  <span className="px-2 py-1 font-mono text-xs text-neutral-500">Note Editor</span>
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setNoteViewMode('document')}
+                      className={`rounded px-2 py-1 font-mono text-xs hover:bg-neutral-200 ${noteViewMode === 'document' ? 'bg-neutral-200' : ''}`}
+                    >
+                      Document
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoteViewMode('source')}
+                      className={`rounded px-2 py-1 font-mono text-xs hover:bg-neutral-200 ${noteViewMode === 'source' ? 'bg-neutral-200' : ''}`}
+                    >
+                      Source
+                    </button>
+                    <button
+                    type="button"
+                    onClick={downloadNotes}
+                    disabled={!noteMarkdown}
+                    className="ml-auto inline-flex items-center rounded bg-ink px-2 py-1 font-mono text-xs text-paper hover:bg-neutral-800 disabled:opacity-50"
+                    aria-label="Download markdown"
+                    title="Download markdown"
+                  >
+                    <Download size={14} aria-hidden="true" />
+                  </button>
+                  </div>
+                </div>
+                <style>{'.cm-note-footnote { font-size: 0.75em; vertical-align: super; text-decoration: underline; text-decoration-style: dotted; cursor: pointer; color: inherit; }'}</style>
+                {noteViewMode === 'document' ? (
+                  <div className="max-h-[80vh] overflow-y-auto p-4 font-mono text-sm leading-6">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        h1: ({ children }) => <h1 className="text-3xl font-medium">{children}</h1>,
+                        h2: ({ children }) => <h2 className="mb-2 mt-4 font-mono text-sm uppercase tracking-widest">{children}</h2>,
+                        h3: ({ children }) => <h3 className="mb-1 mt-3 font-mono text-xs uppercase tracking-wide">{children}</h3>,
+                        p: ({ children }) => <p className="mb-2 leading-6">{children}</p>,
+                        ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
+                        ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                        li: ({ children }) => <li>{children}</li>,
+                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                        hr: () => <hr className="my-4 border-neutral-300" />,
+                        code: ({ children }) => <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs">{children}</code>,
+                      }}
+                    >
+                      {normalizeMath(noteMarkdown)}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <CodeMirror
+                    value={noteMarkdown}
+                    height="640px"
+                    extensions={[markdown(), EditorView.lineWrapping, footnoteExtension]}
+                    onChange={(value) => {
+                      setNoteMarkdown(value);
+                      setNoteEdited(true);
+                    }}
+                    basicSetup={{
+                      lineNumbers: false,
+                      foldGutter: false,
+                      dropCursor: false,
+                      allowMultipleSelections: false,
+                      indentOnInput: true,
+                      bracketMatching: true,
+                      closeBrackets: true,
+                      autocompletion: false,
+                      rectangularSelection: false,
+                      crosshairCursor: false,
+                      highlightActiveLine: true,
+                      highlightActiveLineGutter: false,
+                      highlightSelectionMatches: false,
+                      searchKeymap: false,
+                    }}
+                    className="font-mono text-sm max-h-[80vh]"
+                  />
+                )}
+              </div>
+
+              {references.length ? (
+                  <section className="space-y-2">
+                    <h3 className="font-mono text-xs uppercase tracking-wide text-neutral-500">Sources</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const first = references[0];
+                          setNotesReady(true);
+                          setTab('transcriptions');
+                          if (dspUrl) seekProcessed(first.start);
+                          else seek(first.start);
+                        }}
+                        className="rounded-full border border-neutral-300 bg-paper px-3 py-1 font-mono text-xs text-neutral-700 hover:bg-neutral-200"
+                        title={references.map((reference) => reference.text).join(' ')}
+                      >
+                        Recording transcript ({references.length} cited)
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
             </div>
+          ) : (
+            <p className="text-sm text-neutral-500">No notes generated yet.</p>
           )}
         </section>
       ) : null}

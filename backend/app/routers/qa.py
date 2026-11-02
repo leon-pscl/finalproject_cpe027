@@ -117,19 +117,33 @@ def answer_question(
             temperature=0.0,
         )
         context_str = "\n\n".join(
-            f"[Chunk {c.chunk_id}] {c.text}" for c in top_chunks
+            f"[Chunk {c.chunk_id} @ {float(c.start_s):.1f}s] {c.text}" for c in top_chunks
         )
+        from app.web_search import search_web
+
+        web_results = search_web(request.question, limit=5)
+        web_str = "\n".join(
+            f"- {result.get('title', '')}: {result.get('snippet', '')} ({result.get('url', '')})"
+            for result in web_results
+        ) or "No web results were available."
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You are a helpful assistant. Answer using only the provided context. "
-                    "If the context does not contain the answer, say you don't know. "
-                    "Keep answers concise and mention which source chunk each fact came from.",
+                    "You are LectureFlow, a conversational study assistant for lecture transcripts. "
+                    "Answer naturally and helpfully. If the question is unrelated to this lecture/session, explicitly say you cannot answer it because it is unrelated; do not use web results to fill that gap. "
+                    "Otherwise, first use the lecture context; if the answer is missing there, "
+                    "try the web search results before answering. If neither source contains the answer, say you do not know "
+                    "and propose a useful next step. Verify relevant facts from the lecture context against the web search results; "
+                    "if they conflict, explicitly state the conflict. "
+                    "Keep answers concise and conversational, and cite relevant chunk IDs, audio timestamps like [0.0s], or URLs only for facts actually used. Cite an audio timestamp only when that transcript chunk directly supports the fact. Never invent sources.",
                 ),
-                ("user", "Question: {question}\n\nContext:\n{context}"),
+                ("user", "Question: {question}\n\nLecture context:\n{context}\n\nWeb search results:\n{web_results}"),
             ]
         )
+        answer_text = (prompt | model).invoke(
+            {"question": request.question, "context": context_str, "web_results": web_str}
+        ).content.strip()
         answer_text = (prompt | model).invoke(
             {"question": request.question, "context": context_str}
         ).content.strip()

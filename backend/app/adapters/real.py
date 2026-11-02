@@ -213,21 +213,34 @@ class RealAnswerGenerator(AnswerGenerator):
             from app.llm import get_chat_model
 
             context_str = "\n\n".join(
-                f"[{getattr(chunk, 'chunk_id', index)}] {getattr(chunk, 'text', str(chunk))}"
+                f"[{getattr(chunk, 'chunk_id', index)} @ {float(getattr(chunk, 'start_s', 0.0)):.1f}s] {getattr(chunk, 'text', str(chunk))}"
                 for index, chunk in enumerate(evidence)
             )
-            model = get_chat_model(temperature=0.0)
+
+            from app.web_search import search_web
+
+            web_results = search_web(question, limit=5)
+            web_str = "\n".join(
+                f"- {result.get('title', '')}: {result.get('snippet', '')} ({result.get('url', '')})"
+                for result in web_results
+            ) or "No web results were available."
+
+            model = get_chat_model(temperature=0.2)
             prompt = ChatPromptTemplate.from_messages(
                 [
                     (
                         "system",
-                        "Answer only from the provided context. Say you don't know if missing; cite chunk IDs.",
+                        "You are LectureFlow, a conversational study assistant for lecture transcripts. "
+                        "Answer in a natural, helpful tone. First use the lecture context; if the answer is missing there, "
+                        "try the web search results before answering. If neither source contains the answer, say you do not know "
+                        "and propose a useful next step. Verify relevant facts from the lecture context against the web search results; "
+                        "if they conflict, explicitly state the conflict. Keep the answer concise and conversational, and cite relevant chunk IDs, audio timestamps like [0.0s], or URLs only for facts actually used. Cite an audio timestamp only when that transcript chunk directly supports the fact. Never invent sources.",
                     ),
-                    ("user", "Question: {question}\n\nContext:\n{context}"),
+                    ("user", "Question: {question}\n\nLecture context:\n{context}\n\nWeb search results:\n{web_results}"),
                 ]
             )
             answer_text = (prompt | model).invoke(
-                {"question": question, "context": context_str}
+                {"question": question, "context": context_str, "web_results": web_str}
             ).content.strip()
         except Exception:
             answer_text = " ".join(str(getattr(chunk, "text", "")) for chunk in evidence)
