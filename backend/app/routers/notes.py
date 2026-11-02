@@ -26,14 +26,14 @@ def generate_notes(
     # Load all chunks (FAISS) for the lecture, with fallback if FAISS unavailable
     from app.vector_store import FAISSVectorStore, faiss
     vector_store = FAISSVectorStore(storage.settings.local_storage_root, lecture_id)
-    if faiss is None or getattr(vector_store, "index", None) is None:
+    if getattr(vector_store, "index", None) is None:
         # Fallback: read stored chunks JSON directly from storage
         data_bytes, _ = storage.read_object(f"users/{user.uid}/{lecture_id}/chunks.json")
         chunks_json = data_bytes.decode()
         all_chunks = [Chunk(**c) for c in json.loads(chunks_json)]
     else:
-        # Retrieve all stored chunks (no limit) – fetch raw metadata entries via FAISS
-        all_chunks = [chunk for chunk, _ in vector_store.query(vector_store.index.reconstruct_n(0, vector_store.index.ntotal), top_k=vector_store.index.ntotal)]
+        # Retrieve all stored chunks from the vector store metadata.
+        all_chunks = [Chunk(**c) for c in vector_store.all_chunks()]
     # Use notes generator
     notes_gen = adapter_bundle()["notes"]
     notes = notes_gen.generate(all_chunks, {"lecture_id": lecture_id, "processing_version": "v1"})
