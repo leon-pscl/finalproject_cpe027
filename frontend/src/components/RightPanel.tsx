@@ -99,6 +99,7 @@ function PlayerCard() {
 
 function ProcessedAudioPlayer({ url }: { url: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const { registerProcessedAudio } = useRecording();
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -112,12 +113,14 @@ function ProcessedAudioPlayer({ url }: { url: string }) {
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('ended', onEnded);
+    registerProcessedAudio(audio);
     return () => {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('loadedmetadata', onMeta);
       audio.removeEventListener('ended', onEnded);
+      registerProcessedAudio(null);
     };
-  }, [url]);
+  }, [url, registerProcessedAudio]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;

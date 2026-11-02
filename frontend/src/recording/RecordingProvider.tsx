@@ -93,6 +93,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
   const chatsRef = useRef(chats);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const processedAudioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const blobsRef = useRef(new Map<string, Blob>());
   const pollErrorsRef = useRef(new Map<string, number>());
@@ -398,6 +399,21 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     setPlayerState((p) => ({ ...p, currentTime: seconds }));
   }, []);
 
+  const registerProcessedAudio = useCallback((element: HTMLAudioElement | null) => {
+    processedAudioRef.current = element;
+  }, []);
+
+  const seekProcessed = useCallback((seconds: number) => {
+    const audio = processedAudioRef.current;
+    if (audio) {
+      try {
+        audio.currentTime = seconds;
+      } catch {
+        /* metadata not loaded yet */
+      }
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       chats,
@@ -421,9 +437,11 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       cycleSpeed,
        dspUrl,
       seek,
+       seekProcessed,
+       registerProcessedAudio,
     }),
     [chats, activeId, active, progressById, fileError, playerState, tab, newNote, selectChat, deleteChat, start, ask, play, pause, cycleSpeed,
-       dspUrl, seek],
+       dspUrl, seek, seekProcessed, registerProcessedAudio],
   );
 
   return <RecordingContext.Provider value={value}>{children}</RecordingContext.Provider>;

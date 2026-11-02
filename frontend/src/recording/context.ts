@@ -61,6 +61,8 @@ export type RecordingContextValue = {
   pause: () => void;
   cycleSpeed: () => void;
   seek: (seconds: number) => void;
+  seekProcessed: (seconds: number) => void;
+  registerProcessedAudio: (element: HTMLAudioElement | null) => void;
   dspUrl: string | null;
 };
 

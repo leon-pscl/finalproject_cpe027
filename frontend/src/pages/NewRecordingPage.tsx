@@ -121,7 +121,11 @@ function MiniWave({ seed }: { seed: number }) {
 }
 
 function TranscriptionReady() {
-  const { fileName, transcript, player, seek } = useRecording();
+  const { fileName, transcript, player, seek, seekProcessed, dspUrl } = useRecording();
+  const jumpToSegment = (seconds: number) => {
+    if (dspUrl) seekProcessed(seconds);
+    else seek(seconds);
+  };
 
   if (transcript.length === 0) {
     return (
@@ -148,7 +152,7 @@ function TranscriptionReady() {
             <li key={segment.id} className="col-span-3 grid grid-cols-subgrid">
               <button
                 type="button"
-                onClick={() => seek(segment.start)}
+                onClick={() => jumpToSegment(segment.start)}
                 aria-label={`Jump to ${formatTimestamp(segment.start)}`}
                 aria-current={active ? 'true' : undefined}
                 className={`col-span-3 grid grid-cols-subgrid items-center py-2 text-left hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
