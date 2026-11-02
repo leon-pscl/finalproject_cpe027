@@ -64,6 +64,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+try:
+    _settings = get_settings()
+    logging.basicConfig(
+        level=getattr(logging, str(_settings.log_level).upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+except Exception:
+    pass
+
 
 @lru_cache
 def get_store() -> JobStore:

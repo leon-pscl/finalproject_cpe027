@@ -60,7 +60,7 @@ function PlayerRow({
 function PlayerCard() {
   const { fileName, stage, player, play, pause, seek, dspUrl } = useRecording();
   const hasAudio = fileName !== null;
-  const ready = stage === 'ready';
+  const ready = hasAudio;
 
   if (!hasAudio) {
     return <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>;

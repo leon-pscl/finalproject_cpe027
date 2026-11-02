@@ -89,17 +89,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [fileError, setFileError] = useState<string | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState>(idlePlayer);
   const [dspUrl, setDspUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !dspUrl) return;
-    try {
-      audio.src = dspUrl;
-      audio.load();
-    } catch {
-      /* keep original audio if processed URL cannot be used */
-    }
-  }, [dspUrl]);
   const [tab, setTab] = useState<Tab>('chat');
 
   const chatsRef = useRef(chats);
@@ -224,11 +213,16 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             }
             if (job.status !== 'completed') {
               setChats((current) =>
-                current.map((item) =>
-                  item.id === id && (item.stage === 'dsp' || item.stage === 'transcribing')
-                    ? { ...item, stage: (job.phase === 'transcribing' ? 'transcribing' : 'dsp') as Stage }
-                    : item,
-                ),
+                current.map((item) => {
+                  if (item.id !== id || !(item.stage === 'dsp' || item.stage === 'transcribing')) return item;
+                  const nextStage = job.phase === 'transcribing' ? 'transcribing' : 'dsp';
+                  const live = toTranscript(job);
+                  return {
+                    ...item,
+                    stage: nextStage as Stage,
+                    transcript: live.length > item.transcript.length ? live : item.transcript,
+                  };
+                }),
               );
               setProgressById((current) => ({ ...current, [id]: Math.round(job.progress * 100) }));
               return;

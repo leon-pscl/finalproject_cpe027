@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     env: Env = "dev"
     processing_mode: Literal["mock", "real"] = "mock"
     asr_provider: Literal["none", "faster-whisper"] = "faster-whisper"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     embed_provider: Literal["none", "mock", "groq", "hf"] = "hf"
     llm_provider: str = "groq"
     dsp_enabled: bool = False
@@ -68,7 +69,7 @@ class Settings(BaseSettings):
 
     # Pretrained Whisper model run through faster-whisper (CTranslate2).
     # tiny | base | small | medium | large-v3 | distil-large-v3 ...
-    whisper_model: str = "base"
+    whisper_model: str = "small"
     whisper_device: str = "auto"  # auto | cpu | cuda
     whisper_compute_type: str = "int8"  # int8 for CPU; float16 for GPU
     # "" (empty) = auto-detect, needed for Filipino/English code-switching; or force "en" / "tl".

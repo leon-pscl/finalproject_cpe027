@@ -134,6 +134,7 @@ def transcribe_file(
         except Exception as exc:  # noqa: BLE001 - recorded in the result; transcription continues on the raw audio
             dsp_info = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
     if on_phase:
+        logger.info("ASR phase: transcribing")
         on_phase("transcribing")
     model = model or get_model()
     logger.info("ASR model loaded: %s", getattr(model, "model_name", "unknown"))
@@ -162,6 +163,7 @@ def transcribe_file(
             confidence=round(confidence_from_logprob(raw.avg_logprob), 3),
         )
         result.segments.append(seg)
+        logger.debug("ASR segment %s [%.2f-%.2f]: %s", seg.id, seg.start, seg.end, seg.text)
         if on_segment:
             on_segment(seg)
         if on_progress and duration > 0:
