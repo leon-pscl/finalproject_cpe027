@@ -23,3 +23,8 @@ backend/local_storage/
 backend/storage/
 hf_cache/
 frontend/dist/
+
+# Docker image/build cache
+.docker/
+.docker-cache/
+docker-cache/
