@@ -208,21 +208,15 @@ class RealAnswerGenerator(AnswerGenerator):
         status = AnswerStatus.ANSWERED
         answer_text = None
         try:
-            settings = get_settings()
-            if not getattr(settings, "groq_api_key", None):
-                raise RuntimeError("groq api key not configured")
             from langchain_core.prompts import ChatPromptTemplate
-            from langchain_groq import ChatGroq
+
+            from app.llm import get_chat_model
 
             context_str = "\n\n".join(
                 f"[{getattr(chunk, 'chunk_id', index)}] {getattr(chunk, 'text', str(chunk))}"
                 for index, chunk in enumerate(evidence)
             )
-            model = ChatGroq(
-                api_key=settings.groq_api_key,
-                model="openai/gpt-oss-20b",
-                temperature=0.0,
-            )
+            model = get_chat_model(temperature=0.0)
             prompt = ChatPromptTemplate.from_messages(
                 [
                     (
@@ -292,24 +286,23 @@ class RealNotesGenerator(NotesGenerator):
         lc_available = True
         try:
             from langchain_core.prompts import ChatPromptTemplate
-            from langchain_groq import ChatGroq
+
+            from app.llm import get_chat_model
         except Exception:
             lc_available = False
 
         if lc_available:
             try:
-                settings = get_settings()
-                if not settings.groq_api_key:
-                    raise RuntimeError("groq api key not configured")
+                from app.llm import get_chat_model, structured_output_method
 
-                from langchain_groq import ChatGroq
-
-                model = ChatGroq(
-                    api_key=settings.groq_api_key,
-                    model="openai/gpt-oss-20b",
-                    temperature=0.0,
+                model = get_chat_model(temperature=0.0)
+                structured_output_kwargs = {}
+                _method = structured_output_method()
+                if _method is not None:
+                    structured_output_kwargs["method"] = _method
+                structured_model = model.with_structured_output(
+                    _GeneratedNotes, **structured_output_kwargs
                 )
-                structured_model = model.with_structured_output(_GeneratedNotes)
 
                 def run_batch(batch):
                     context = "\n".join(f"[{cid}] {txt}" for cid, txt in batch)

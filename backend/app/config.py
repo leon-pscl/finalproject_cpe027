@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # Provider configuration (keys stay server-side; never committed)
     openai_api_key: str | None = None
     groq_api_key: str | None = None
+    ollama_api_key: str | None = None
+    ollama_base_url: str = "https://ollama.com"
+    ollama_model: str = "gpt-oss:20b"
     custom_asr_base_url: str | None = None
 
     repository_backend: Literal["memory"] = "memory"
