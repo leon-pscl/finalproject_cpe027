@@ -851,6 +851,7 @@ export type TranscriptNote = {
 export type TranscriptionAnswer = {
   status: string;
   blocks: { block_id: string; text: string; source_ids: string[] }[];
+  sources?: { source_id: string; segment_id?: string | null; start_s: number; end_s: number; text: string }[];
 };
 
 export async function generateTranscriptionAnswer(jobId: string, question: string): Promise<TranscriptionAnswer> {

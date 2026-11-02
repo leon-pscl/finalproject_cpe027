@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Clock, Pause, Play } from 'lucide-react';
+import { Pause, Play } from 'lucide-react';
 import { validateAudio } from '../services/mock';
 import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
@@ -106,32 +106,13 @@ function BigWave() {
   );
 }
 
-/** Deterministic mini waveform so a row always draws the same bars. */
-function MiniWave({ seed }: { seed: number }) {
-  const bars = Array.from({ length: 26 }, (_, i) => {
-    const v = Math.abs(Math.sin((i + 1) * (seed + 3) * 0.9)) * 0.75 + 0.2;
-    return Math.round(v * 20);
-  });
-  return (
-    <svg viewBox="0 0 104 24" aria-hidden="true" className="h-6 w-[6.5rem]">
-      {bars.map((height, i) => (
-        <rect key={i} x={i * 4} y={12 - height / 2} width="1.6" height={height} fill="#000" />
-      ))}
-    </svg>
-  );
-}
-
 function TranscriptionReady() {
-  const { fileName, transcript, player, seek, seekProcessed, dspUrl, jobId } = useRecording();
+  const { fileName, transcript, jobId, setNotesReady } = useRecording();
   const [notes, setNotes] = useState<TranscriptNote[]>([]);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
   const [notesProgress, setNotesProgress] = useState(0);
   const [noteError, setNoteError] = useState<string | null>(null);
   const requestedNotesRef = useRef(false);
-  const jumpToSegment = (seconds: number) => {
-    if (dspUrl) seekProcessed(seconds);
-    else seek(seconds);
-  };
 
   const generateNotes = useCallback(() => {
     if (!jobId || isGeneratingNotes) return;
@@ -142,16 +123,24 @@ function TranscriptionReady() {
       setNotesProgress((previous) => Math.min(90, previous + 6));
     }, 200);
     generateTranscriptionNotes(jobId)
-      .then(setNotes)
+      .then((nextNotes) => {
+        setNotes(nextNotes);
+        setNotesReady(true);
+      })
       .catch((error: unknown) => {
         setNoteError(error instanceof Error ? error.message : 'Failed to generate notes.');
+        setNotesReady(false);
       })
       .finally(() => {
         window.clearInterval(timer);
         setNotesProgress(100);
         setIsGeneratingNotes(false);
       });
-  }, [jobId, isGeneratingNotes]);
+  }, [jobId, isGeneratingNotes, setNotesReady]);
+
+  const updateNote = useCallback((noteId: string, patch: Partial<TranscriptNote>) => {
+    setNotes((existing) => existing.map((item) => (item.note_id === noteId ? { ...item, ...patch } : item)));
+  }, []);
 
   useEffect(() => {
     if (!jobId || notes.length > 0 || isGeneratingNotes || requestedNotesRef.current) return;
@@ -186,39 +175,9 @@ function TranscriptionReady() {
       <div className="mt-6"><BigWave /></div>
       <p className="mt-2 break-all text-center font-mono text-sm uppercase tracking-wide">{fileName}</p>
 
-      <ul className="mt-10 grid w-full grid-cols-[4rem_6.5rem_minmax(0,1fr)] gap-x-4 gap-y-2">
-        {transcript.map((segment, index) => {
-          const next = transcript[index + 1];
-          const active = player.currentTime >= segment.start && (!next || player.currentTime < next.start);
-          return (
-            <li key={segment.id} className="col-span-3 grid grid-cols-subgrid">
-              <button
-                type="button"
-                onClick={() => jumpToSegment(segment.start)}
-                aria-label={`Jump to ${formatTimestamp(segment.start)}`}
-                aria-current={active ? 'true' : undefined}
-                className={`col-span-3 grid grid-cols-subgrid items-center py-2 text-left hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${
-                  active ? 'bg-slate-200' : ''
-                }`}
-              >
-                <span className="flex flex-col items-center font-mono text-sm">
-                  <Clock size={18} aria-hidden="true" />
-                  {formatTimestamp(segment.start)}
-                </span>
-                <MiniWave seed={index} />
-                <span className="text-sm">
-                  <span className="text-neutral-500">Text: </span>
-                  {segment.text}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
-      {jobId ? (
-        <div className="mt-8 w-full rounded border border-ink bg-paper p-4 text-left">
-          <div className="mb-3 flex items-center justify-between gap-3">
+{jobId ? (
+        <section className="mt-8 w-full space-y-6 text-left">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="font-mono text-sm uppercase tracking-widest">Generated Notes</h2>
             <button
               type="button"
@@ -229,26 +188,42 @@ function TranscriptionReady() {
               {isGeneratingNotes ? 'Generating…' : 'Generate notes'}
             </button>
           </div>
-          {noteError ? <p className="mb-3 text-sm text-red-700">{noteError}</p> : null}
+          {noteError ? <p className="text-sm text-red-700">{noteError}</p> : null}
           {notes.length === 0 ? (
             <p className="text-sm text-neutral-500">No notes generated yet.</p>
           ) : (
-            <div className="space-y-4">
-              {notes.map((note) => (
-                <article key={note.note_id} className="rounded border border-neutral-300 p-3">
-                  <p className="font-mono text-xs uppercase tracking-wide text-neutral-500">{note.section}</p>
-                  <h3 className="mt-1 font-mono text-sm font-medium">{note.title}</h3>
-                  <p className="mt-2 text-sm leading-6">{note.description}</p>
+            <div className="space-y-6">
+              {notes.map((note, index) => (
+                <div key={note.note_id} className="space-y-2">
+                  <input
+                    value={note.section}
+                    onChange={(event) => updateNote(note.note_id, { section: event.target.value })}
+                    aria-label={`Generated note ${index + 1} section`}
+                    className="w-full border-0 bg-transparent font-mono text-xs uppercase tracking-wide text-neutral-500 focus:outline-none focus:ring-0"
+                  />
+                  <input
+                    value={note.title}
+                    onChange={(event) => updateNote(note.note_id, { title: event.target.value })}
+                    aria-label={`Generated note ${index + 1} title`}
+                    className="w-full border-0 bg-transparent font-mono text-sm font-medium focus:outline-none focus:ring-0"
+                  />
+                  <textarea
+                    value={note.description}
+                    onChange={(event) => updateNote(note.note_id, { description: event.target.value })}
+                    aria-label={`Generated note ${index + 1} description`}
+                    rows={3}
+                    className="w-full resize-y border border-neutral-300 bg-paper p-2 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ink"
+                  />
                   {note.supporting_segment_ids.length ? (
-                    <p className="mt-2 font-mono text-xs text-neutral-500">
+                    <p className="font-mono text-xs text-neutral-500">
                       References: {note.supporting_segment_ids.join(', ')}
                     </p>
                   ) : null}
-                </article>
+                </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       ) : null}
     </div>
   );

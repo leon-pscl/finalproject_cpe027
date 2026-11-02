@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Bot, Pause, PanelRightClose, Play } from 'lucide-react';
+import { Bot, Clock, Pause, PanelRightClose, Play } from 'lucide-react';
 import { formatTimestamp } from '../recording/format';
 import { useRecording } from '../recording/useRecording';
 import type { Tab } from '../recording/context';
@@ -60,39 +60,72 @@ function PlayerRow({
   );
 }
 
-function PlayerCard() {
-  const { fileName, player, play, pause, seek, dspUrl } = useRecording();
+function TranscriptionsPanel() {
+  const { fileName, player, play, pause, seek, seekProcessed, dspUrl, transcript, notesReady } = useRecording();
   const hasAudio = fileName !== null;
   const ready = hasAudio;
 
-  if (!hasAudio) {
+  const jumpToSegment = (seconds: number) => {
+    if (dspUrl) seekProcessed(seconds);
+    else seek(seconds);
+  };
+
+  if (!hasAudio && transcript.length === 0) {
     return <p className="text-neutral-500">Transcriptions for the open recording will appear here.</p>;
   }
 
   return (
-    <div className="space-y-3 font-mono text-xs leading-5">
-      <p className="break-all">Audio Source: {fileName}</p>
-      <p className="flex items-center gap-1.5">
-        Status:
-        <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-full ${ready ? 'bg-ink' : 'bg-neutral-500'}`} />
-        {ready ? 'Enhanced (DSP Active)' : 'Processing…'}
-      </p>
-      <PlayerRow
-        label="raw audio"
-        ready={ready}
-        playing={player.playing}
-        current={player.currentTime}
-        duration={player.duration}
-        onPlay={play}
-        onPause={pause}
-        onSeek={seek}
-      />
-      {dspUrl ? (
+    <div className="space-y-4 font-mono text-xs leading-5">
+      {hasAudio ? (
         <>
-          <p className="break-all">Processed Audio: {fileName}</p>
-          <ProcessedAudioPlayer url={dspUrl} />
+          <p className="break-all">Audio Source: {fileName}</p>
+          <p className="flex items-center gap-1.5">
+            Status:
+            <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-full ${ready ? 'bg-ink' : 'bg-neutral-500'}`} />
+            {ready ? 'Enhanced (DSP Active)' : 'Processing…'}
+          </p>
+          <PlayerRow
+            label="raw audio"
+            ready={ready}
+            playing={player.playing}
+            current={player.currentTime}
+            duration={player.duration}
+            onPlay={play}
+            onPause={pause}
+            onSeek={seek}
+          />
+          {dspUrl ? <ProcessedAudioPlayer url={dspUrl} /> : null}
         </>
       ) : null}
+
+      {transcript.length > 0 && notesReady ? (
+        <ol className="space-y-2" aria-label="Transcription segments">
+          {transcript.map((segment, index) => {
+            const next = transcript[index + 1];
+            const active = player.currentTime >= segment.start && (!next || player.currentTime < next.start);
+            return (
+              <li key={segment.id}>
+                <button
+                  type="button"
+                  onClick={() => jumpToSegment(segment.start)}
+                  aria-label={`Jump to ${formatTimestamp(segment.start)}`}
+                  className={`grid w-full grid-cols-[4rem_1fr] gap-2 rounded px-1 py-1 text-left hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink ${active ? 'bg-slate-200' : ''}`}
+                >
+                  <span className="flex flex-col items-center text-center">
+                    <Clock size={14} aria-hidden="true" />
+                    {formatTimestamp(segment.start)}
+                  </span>
+                  <span className="text-sm text-ink">{segment.text}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      ) : notesReady ? (
+        <p className="text-neutral-500">No transcription segments were detected.</p>
+      ) : (
+        <p className="text-neutral-500">Transcriptions will appear in this tab after notes are generated.</p>
+      )}
     </div>
   );
 }
@@ -231,7 +264,7 @@ export default function RightPanel({ onCollapse }: { onCollapse: () => void }) {
               )
             )
           ) : (
-            <PlayerCard />
+            <TranscriptionsPanel />
           )}
           <div ref={endRef} />
         </div>

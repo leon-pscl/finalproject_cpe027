@@ -3,7 +3,8 @@ FROM node:22-alpine AS frontend-build
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci
 
 COPY frontend/ ./
 RUN npm run build

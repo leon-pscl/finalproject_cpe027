@@ -47,6 +47,9 @@ describe('recording flow (wireframes 1-5)', () => {
     // Test-only stub of the HTTP boundary; the real backend is covered by backend/tests.
     let polls = 0;
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (typeof url === 'string' && url.includes('/answer')) {
+        return Response.json({ status: 'answered', blocks: [{ block_id: 'b-1', text: 'The lecturer connected noise reduction to windowed STFT processing.', source_ids: ['seg-1'] }], sources: [{ source_id: 'seg-1', segment_id: 'seg-1', start_s: 12, end_s: 20, text: 'Noise reduction happens before recognition.' }] }, { status: 200 });
+      }
       if (typeof url === 'string' && url.includes('/notes')) {
         return Response.json([{ note_id: 'note-1', section: 'Summary', title: 'Notes', description: 'Generated notes.', supporting_segment_ids: [] }], { status: 200 });
       }
@@ -81,16 +84,19 @@ describe('recording flow (wireframes 1-5)', () => {
     expect(await screen.findByText(/transcription ready/i, {}, { timeout: 6000 })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe('/api/transcriptions');
     expect(screen.getByText('lecture.wav')).toBeInTheDocument();
-    expect(screen.getByText('Noise reduction happens before recognition.')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /transcriptions/i }));
+    const transcriptPanel = screen.getByRole('tabpanel');
+    expect(within(transcriptPanel).getByText('Noise reduction happens before recognition.')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /chat/i }));
     expect(screen.queryByText(/generating notes/i)).not.toBeInTheDocument();
     expect(screen.getByText(/audio enhanced in 1\.2 s \(estimated snr 11\.5 → 17\.3 db\)/i)).toBeInTheDocument();
 
-    // Chat: the answer is a real transcript segment with its timestamp.
+    // Chat: answer comes from the transcription answer endpoint, not timestamp fallback.
     await user.type(screen.getByLabelText(/message/i), 'What did the lecturer say about noise reduction?');
     await user.keyboard('{Enter}');
-    expect(await screen.findByText(/^\[00:12\] Noise reduction/)).toBeInTheDocument();
+    expect(await screen.findByText(/^\[00:12\] The lecturer connected noise reduction/i)).toBeInTheDocument();
 
-    // Transcriptions tab: player card.
+    // Transcriptions tab: transcript and player card are available there.
     await user.click(screen.getByRole('tab', { name: /transcriptions/i }));
     const panel = screen.getByRole('tabpanel');
     expect(within(panel).getByText(/audio source: lecture\.wav/i)).toBeInTheDocument();

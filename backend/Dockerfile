@@ -10,17 +10,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system packages required for building wheels and runtime ffmpeg
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ build-essential ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+# Install system packages required for building wheels and runtime ffmpeg.
+# BuildKit caches apt downloads so rebuilds are fast; keeping build tools only in this stage.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ build-essential ffmpeg
 
 # Install runtime Python dependencies. Torch comes first, from the CPU-only index: the
 # PyPI wheel is the CUDA build (~2.5GB with its nvidia deps) and nothing here needs a GPU.
 # Installing it after requirements.txt is a no-op, as sentence-transformers already pulled it in.
 COPY requirements.txt ./
-RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.0,<3" \
-    && pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pip install --prefer-binary --index-url https://download.pytorch.org/whl/cpu "torch>=2.0,<3" \
+    && pip install --prefer-binary -r requirements.txt
 
 # --------------------------------------------
 # Runtime stage – contains only the runtime dependencies (no compilers)
@@ -37,8 +40,9 @@ COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Install only the ffmpeg runtime (no compilers) – keep the image lean
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends ffmpeg
 
 # Copy application code (the code does not need to be re-installed)
 COPY app ./app

@@ -355,6 +355,21 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       const jobId = chat.jobId ?? null;
       const youMessage = makeMessage('you', question);
 
+      // Surface the user's question immediately, before awaiting the assistant answer.
+      const now = Date.now();
+      setChats((existing) =>
+        existing.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                title: item.title === DEFAULT_TITLE ? (question.length > 32 ? `${question.slice(0, 32)}…` : question) : item.title,
+                messages: [...item.messages, youMessage],
+                updatedAt: now,
+              }
+            : item,
+        ),
+      );
+
       let answerText = transcriptLookup(question, chat.transcript);
       if (jobId) {
         try {
@@ -363,21 +378,27 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             .map((block) => block.text)
             .join('\n\n')
             .trim();
-          if (generated) answerText = generated;
+          if (generated) {
+            const firstSource = (response.sources ?? [])[0];
+            const citation =
+              firstSource && typeof firstSource.start_s === 'number'
+                ? `[${formatTimestamp(firstSource.start_s)}] `
+                : '';
+            answerText = citation && !generated.includes(citation.trim()) ? `${citation}${generated}` : generated;
+          }
         } catch {
           // Keep the local fallback if the backend is unavailable.
         }
       }
       const botMessage = makeMessage('assistant', answerText);
-      const now = Date.now();
       setChats((existing) =>
         existing.map((item) =>
           item.id === id
             ? {
                 ...item,
                 title: item.title === DEFAULT_TITLE ? (question.length > 32 ? `${question.slice(0, 32)}…` : question) : item.title,
-                messages: [...item.messages, youMessage, botMessage],
-                updatedAt: now,
+                messages: [...item.messages, botMessage],
+                updatedAt: Date.now(),
               }
             : item,
         ),
@@ -385,6 +406,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     },
     [activeId, makeMessage],
   );
+
+  const setNotesReady = useCallback((ready: boolean) => {
+    if (!activeId) return;
+    setChats((existing) =>
+      existing.map((item) => (item.id === activeId ? { ...item, notesReady: ready } : item)),
+    );
+  }, [activeId]);
 
   /* ---------- player ---------- */
   const play = useCallback(() => {
@@ -443,6 +471,8 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       jobId: active?.jobId ?? null,
       tab,
       setTab,
+      notesReady: active?.notesReady ?? false,
+      setNotesReady,
       newNote,
       selectChat,
       deleteChat,
@@ -457,7 +487,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
        registerProcessedAudio,
     }),
     [chats, activeId, active, progressById, fileError, playerState, tab, newNote, selectChat, deleteChat, start, ask, play, pause, cycleSpeed,
-       dspUrl, seek, seekProcessed, registerProcessedAudio],
+       dspUrl, seek, seekProcessed, registerProcessedAudio, setNotesReady],
   );
 
   return <RecordingContext.Provider value={value}>{children}</RecordingContext.Provider>;

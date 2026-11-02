@@ -24,6 +24,7 @@ export type ChatSession = {
   fileName: string | null;
   /** Backend transcription job for this chat (present while processing, kept for cleanup). */
   jobId?: string;
+  notesReady?: boolean;
   /** Fallback duration in seconds (used when the audio element has no metadata). */
   duration: number;
   storagePath: string | null;
@@ -45,6 +46,7 @@ export type RecordingContextValue = {
   messages: ChatMessage[];
   player: PlayerState;
   jobId: string | null;
+  notesReady: boolean;
 
   /** Which tab the right panel shows. */
   tab: Tab;
@@ -57,6 +59,7 @@ export type RecordingContextValue = {
 
   start: (file: File) => Promise<void>;
   ask: (text: string) => Promise<void>;
+  setNotesReady: (ready: boolean) => void;
   play: () => void;
   pause: () => void;
   cycleSpeed: () => void;
