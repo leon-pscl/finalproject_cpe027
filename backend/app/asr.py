@@ -69,10 +69,13 @@ def get_model():
             import os
 
             s = get_settings()
-            threads = max(1, int(getattr(s, "whisper_threads", 2)))
+            threads = max(1, int(getattr(s, "whisper_threads", 4)))
             os.environ.setdefault("OMP_NUM_THREADS", str(threads))
             os.environ.setdefault("MKL_NUM_THREADS", str(threads))
             os.environ.setdefault("OPENBLAS_NUM_THREADS", str(threads))
+            logging.getLogger(__name__).info(
+                "Loading faster-whisper model %s with %s thread(s)", s.whisper_model, threads
+            )
 
             from faster_whisper import WhisperModel
 

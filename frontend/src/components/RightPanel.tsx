@@ -30,12 +30,18 @@ function PlayerRow({
   label: string;
 }) {
   return (
-    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
-      <button type="button" aria-label={`Play ${label}`.trim()} onClick={onPlay} disabled={!ready || playing} className={rowBtn}>
-        <Play size={14} aria-hidden="true" />
-      </button>
-      <button type="button" aria-label={`Pause ${label}`.trim()} onClick={onPause} disabled={!ready || !playing} className={rowBtn}>
-        <Pause size={14} aria-hidden="true" />
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+      <button
+        type="button"
+        aria-label={playing ? `Pause ${label}`.trim() : `Play ${label}`.trim()}
+        onClick={() => {
+          if (playing) onPause();
+          else onPlay();
+        }}
+        disabled={!ready}
+        className={rowBtn}
+      >
+        {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
       </button>
       <input
         type="range"

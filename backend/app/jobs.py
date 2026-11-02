@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -270,6 +271,8 @@ class JobStore:
             self._persist_job(job)
 
             audio_for_asr = job.dsp_audio_path or job.path
+            logger = logging.getLogger(__name__)
+            logger.info("Starting ASR transcription for %s", audio_for_asr)
             # Continue progress monotonically from the DSP stage (0.1 -> 1.0),
             # rather than letting ASR restart the bar at zero.
             job.progress = max(job.progress, 0.1)

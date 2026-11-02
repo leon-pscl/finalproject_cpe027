@@ -24,9 +24,11 @@ services:
       ENHANCE_DEFAULT: "true" # DSP enhancement on the /api/transcriptions path the frontend uses
       DSP_ENABLED: "true"     # DSP in the lecture-pipeline worker (media.py filter graph)
       MAX_UPLOAD_MB: "512"
+      LOG_LEVEL: "DEBUG"
       PYTHONPATH: /app
     volumes:
       - ./storage:/data/storage   # host folder persists uploaded media across restarts
+      - ./models:/models   # persists downloaded faster-whisper weights across restarts
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
       interval: 10s
