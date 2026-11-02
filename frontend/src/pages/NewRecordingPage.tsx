@@ -68,8 +68,9 @@ function DropZone({ onFile, fileError }: { onFile: (file: File) => void; fileErr
 }
 
 /* ---------- Frame 2/3: Loading ---------- */
-function LoadingBar({ label }: { label: string }) {
-  const { progress } = useRecording();
+function LoadingBar({ label, progress }: { label: string; progress?: number }) {
+  const { progress: globalProgress } = useRecording();
+  const value = Math.max(0, Math.min(100, progress ?? globalProgress));
   return (
     <div className="w-full max-w-[20rem] text-center">
       <p className="mb-1 font-mono text-sm uppercase tracking-widest">{label}</p>
@@ -79,10 +80,10 @@ function LoadingBar({ label }: { label: string }) {
           aria-label={label}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(progress)}
+          aria-valuenow={Math.round(value)}
           className="h-5 border border-ink bg-paper"
         >
-          <div className="h-full bg-ink" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-ink" style={{ width: `${value}%` }} />
         </div>
       </div>
     </div>
@@ -234,7 +235,7 @@ function RecordingPreview({ src }: { src: string; }) {
 }
 
 export default function NewRecordingPage() {
-  const { stage, fileError: uploadError, start } = useRecording();
+  const { stage, progress, fileError: uploadError, start } = useRecording();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileError, setSelectedFileError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -317,9 +318,11 @@ export default function NewRecordingPage() {
           }}
         />
       ) : null}
-      {stage === 'dsp' ? <LoadingBar label="Cleaning audio via DSP..." /> : null}
+      {stage === 'dsp' ? <LoadingBar label="Cleaning audio via DSP..." progress={Math.min(100, progress * 10)} /> : null}
 
-      {stage === 'transcribing' ? <LoadingBar label="Transcribing..." /> : null}
+      {stage === 'transcribing' ? (
+        <LoadingBar label="Transcribing..." progress={Math.min(100, Math.max(0, (progress - 10) / 90 * 100))} />
+      ) : null}
       {stage === 'generatingNotes' ? <LoadingBar label="Generating notes..." /> : null}
     </div>
   );
