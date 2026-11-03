@@ -529,6 +529,10 @@ def aggregate_records(
         for index, key_name in enumerate(group_keys):
             row[key_name] = key[index]
         row["count"] = len(members)
+        row["unique_talks"] = len(
+            {record.get("talk_id", record.get("clip_id")) for record in members}
+        )
+        row["unique_speakers"] = None
         for metric in metric_keys:
             values = [
                 float(record[metric])
@@ -539,11 +543,33 @@ def aggregate_records(
             if values:
                 row[f"{metric}_mean"] = float(statistics.fmean(values))
                 row[f"{metric}_std"] = (
-                    float(statistics.stdev(values)) if len(values) > 1 else 0.0
+                    float(statistics.stdev(values)) if len(values) > 1 else None
                 )
             else:
                 row[f"{metric}_mean"] = None
                 row[f"{metric}_std"] = None
+            row[f"{metric}_valid_observations"] = len(values)
+
+            edit_key = f"{metric}_edits"
+            ref_key = f"{metric}_ref_count"
+            edit_total = sum(
+                int(record[edit_key])
+                for record in members
+                if isinstance(record.get(edit_key), (int, float))
+            )
+            ref_total = sum(
+                int(record[ref_key])
+                for record in members
+                if isinstance(record.get(ref_key), (int, float))
+            )
+            if ref_total > 0:
+                row[f"{metric}_corpus"] = edit_total / ref_total
+                row[f"{metric}_edit_count"] = edit_total
+                row[f"{metric}_reference_count"] = ref_total
+            else:
+                row[f"{metric}_corpus"] = None
+                row[f"{metric}_edit_count"] = None
+                row[f"{metric}_reference_count"] = None
         result.append(row)
     return result
 

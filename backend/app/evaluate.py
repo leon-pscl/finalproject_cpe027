@@ -27,25 +27,47 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def wer(reference: str, hypothesis: str) -> float:
+def wer_counts(reference: str, hypothesis: str) -> tuple[int, int]:
+    """Return (word edits, reference word count) for corpus WER aggregation."""
     ref, hyp = normalize(reference).split(), normalize(hypothesis).split()
-    return Levenshtein.distance(ref, hyp) / max(1, len(ref))
+    return int(Levenshtein.distance(ref, hyp)), int(len(ref))
+
+
+def wer(reference: str, hypothesis: str) -> float:
+    edits, ref_words = wer_counts(reference, hypothesis)
+    return edits / max(1, ref_words)
+
+
+def cer_counts(reference: str, hypothesis: str) -> tuple[int, int]:
+    """Return (character edits, reference character count) for corpus CER aggregation."""
+    ref, hyp = normalize(reference), normalize(hypothesis)
+    return int(Levenshtein.distance(ref, hyp)), int(len(ref))
 
 
 def cer(reference: str, hypothesis: str) -> float:
-    ref, hyp = normalize(reference), normalize(hypothesis)
-    return Levenshtein.distance(ref, hyp) / max(1, len(ref))
+    edits, ref_chars = cer_counts(reference, hypothesis)
+    return edits / max(1, ref_chars)
+
+
+def term_counts(reference: str, hypothesis: str, terms: list[str]) -> tuple[int, int]:
+    """Return (recovered terms, eligible terms) for glossary-term presence recall."""
+    ref, hyp = f" {normalize(reference)} ", f" {normalize(hypothesis)} "
+    present = [t for t in (normalize(t) for t in terms) if t and f" {t} " in ref]
+    recovered = sum(1 for term in present if f" {term} " in hyp)
+    return int(recovered), int(len(present))
 
 
 def term_accuracy(
     reference: str, hypothesis: str, terms: list[str]
 ) -> tuple[float, int]:
-    """Share of glossary terms present in the reference that the hypothesis also contains."""
-    ref, hyp = f" {normalize(reference)} ", f" {normalize(hypothesis)} "
-    present = [t for t in (normalize(t) for t in terms) if t and f" {t} " in ref]
-    if not present:
+    """Share of glossary terms present in the reference that the hypothesis also contains.
+
+    This is term-presence recall, not an occurrence-aligned term error rate.
+    """
+    recovered, eligible = term_counts(reference, hypothesis, terms)
+    if eligible == 0:
         return float("nan"), 0
-    return sum(f" {t} " in hyp for t in present) / len(present), len(present)
+    return recovered / eligible, eligible
 
 
 def run_condition(path: str, **kwargs) -> tuple[str, float, dict | None, str | None]:

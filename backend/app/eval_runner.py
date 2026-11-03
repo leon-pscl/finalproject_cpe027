@@ -7,10 +7,13 @@ unmodified M3AV clips. Tiers are reported separately and never pooled.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -39,8 +42,16 @@ from .media import DSPConfig, process_local_audio
 
 
 CONDITIONS = ("arm_a", "hp", "hp+sg")
-TIER1_METRICS = ["wer", "cer", "kter", "signal_snr_improvement_db", "rtf", "seconds"]
-TIER2_METRICS = ["wer", "cer", "kter", "rtf", "seconds", "nshr"]
+
+CHECKPOINT_SCHEMA_VERSION = 2
+METRIC_VERSION = "1.0.0"
+RESULT_SCHEMA_VERSION = 2
+
+
+class CheckpointIncompatibleError(RuntimeError):
+    """Raised when a checkpoint cannot be safely resumed for the current run."""
+TIER1_METRICS = ["wer", "cer", "term_presence_recall", "signal_snr_improvement_db", "rtf", "seconds"]
+TIER2_METRICS = ["wer", "cer", "term_presence_recall", "rtf", "seconds", "nshr"]
 TIER1_CSV = [
     "tier",
     "split",
@@ -52,6 +63,7 @@ TIER1_CSV = [
     "wer",
     "cer",
     "kter",
+    "term_presence_recall",
     "terms_present",
     "signal_snr_improvement_db",
     "rtf",
@@ -67,6 +79,7 @@ TIER2_CSV = [
     "wer",
     "cer",
     "kter",
+    "term_presence_recall",
     "terms_present",
     "nshr",
     "rtf",
@@ -77,16 +90,69 @@ TIER2_CSV = [
 RELEVANT_DEMAND_ENVS = ("DKITCHEN", "DLIVING", "DWASHING")
 
 
-def _load_checkpoint(path: Path) -> dict[str, Any]:
+def _hash_file(path: Path) -> str | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def _hash_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _git_state() -> dict[str, Any]:
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return {"commit": None, "dirty": None}
+    return {"commit": commit or None, "dirty": dirty}
+
+
+def _stable_json(payload: Any) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _load_checkpoint(path: Path, expected_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
     if not path.is_file():
-        return {"schema_version": 1, "records": []}
+        return {"schema_version": CHECKPOINT_SCHEMA_VERSION, "records": [], "run_manifest": expected_manifest}
     try:
         with path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
-    except (json.JSONDecodeError, OSError):
-        return {"schema_version": 1, "records": []}
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
+        raise CheckpointIncompatibleError(f"incompatible checkpoint (unreadable): {exc}") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
-        return {"schema_version": 1, "records": []}
+        raise CheckpointIncompatibleError("incompatible checkpoint (missing records list)")
+    schema_version = int(payload.get("schema_version", 0))
+    if schema_version != CHECKPOINT_SCHEMA_VERSION:
+        raise CheckpointIncompatibleError(
+            f"incompatible checkpoint schema {schema_version}; "
+            "start a new run with --no-resume or remove the checkpoint"
+        )
+    if expected_manifest is not None and payload.get("run_manifest") != expected_manifest:
+        raise CheckpointIncompatibleError("incompatible checkpoint manifest/fingerprint")
+    if expected_manifest is None and payload.get("run_manifest") is not None:
+        # Existing checkpoint must be validated by its own manifest; require caller to decide.
+        pass
+    if expected_manifest is None and payload.get("run_manifest") is not None and not isinstance(payload.get("run_manifest"), dict):
+        raise CheckpointIncompatibleError("incompatible checkpoint manifest")
     return payload
 
 
@@ -98,6 +164,96 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temp, path)
+
+
+def _software_versions() -> dict[str, str]:
+    versions: dict[str, str] = {"python": sys.version.split()[0]}
+    for package in ("faster-whisper", "scipy", "numpy", "rapidfuzz"):
+        try:
+            from importlib.metadata import version
+
+            versions[package] = version(package)
+        except Exception:
+            versions[package] = "unknown"
+    return versions
+
+
+def _run_manifest(
+    *,
+    tier: int,
+    args: argparse.Namespace,
+    settings: Any,
+    talks: list[Any],
+    conditions: list[str],
+    noise_type: str,
+    snr_values: list[Any],
+    manifest_extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    talk_ids = [
+        getattr(talk, "talk_id", getattr(talk, "clip_id", None)) for talk in talks
+    ]
+    inputs = []
+    for talk in talks:
+        talk_id = getattr(talk, "talk_id", getattr(talk, "clip_id", None))
+        reference = getattr(talk, "reference", "")
+        audio_path = getattr(talk, "audio_path", None)
+        inputs.append(
+            {
+                "id": talk_id,
+                "audio_sha256": _hash_file(Path(audio_path)) if audio_path is not None else None,
+                "reference_sha256": _hash_text(str(reference)),
+            }
+        )
+    manifest = {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "result_schema_version": RESULT_SCHEMA_VERSION,
+        "metric_version": METRIC_VERSION,
+        "tier": tier,
+        "dataset": {
+            "name": "acl6060" if tier == 1 else "m3av",
+            "split": getattr(args, "split", None),
+            "source_ids": talk_ids,
+            "limit": getattr(args, "limit", None),
+        },
+        "inputs": inputs,
+        "noise": {
+            "source": noise_type,
+            "snrs": snr_values,
+            "seed": getattr(args, "noise_seed", None),
+            "seed_policy": "noise_seed_for(base_seed, talk_id, noise_key, snr_db)",
+            "noise_file": getattr(args, "noise", None),
+            "demand_envs": getattr(args, "demand_envs", None),
+        },
+        "model": {
+            "provider": settings.asr_provider,
+            "model": settings.whisper_model,
+            "device": settings.whisper_device,
+            "compute_type": settings.whisper_compute_type,
+            "threads": settings.whisper_threads,
+            "revision": "as-configured",
+        },
+        "language": settings.whisper_language,
+        "decoding": {
+            "beam_size": 5,
+            "vad_filter": True,
+            "vad_parameters": {"min_silence_duration_ms": 500},
+            "condition_on_previous_text": False,
+            "initial_prompt": None,
+            "no_speech_probability_dropout": 0.8,
+        },
+        "preprocessing": {
+            "conditions": conditions,
+            "high_pass_cutoff_hz": settings.dsp_high_pass_cutoff_hz,
+            "spectral_gating_enabled": settings.dsp_spectral_gating_enabled,
+            "level_policy": "media extract mono 16 kHz PCM plus configured DSP stages",
+        },
+        "metric_version": METRIC_VERSION,
+        "software": _software_versions(),
+        "git": _git_state(),
+    }
+    if manifest_extra:
+        manifest.update(manifest_extra)
+    return manifest
 
 
 def _tier1_record_key(record: dict[str, Any]) -> tuple[Any, ...]:
@@ -209,6 +365,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     checkpoint_path = Path(getattr(args, "checkpoint", None) or (out_dir / "tier1_checkpoint.json")).expanduser().resolve()
     resume = bool(getattr(args, "resume", True))
     keep_media = bool(getattr(args, "keep_media", False))
+    keep_asr_input = bool(getattr(args, "keep_asr_input", False))
     if not resume and checkpoint_path.exists():
         checkpoint_path.unlink(missing_ok=True)
 
@@ -232,8 +389,17 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
 
+    manifest = _run_manifest(
+        tier=1,
+        args=args,
+        settings=settings,
+        talks=talks,
+        conditions=conditions,
+        noise_type=noise_type,
+        snr_values=snr_values,
+    )
     if resume:
-        checkpoint = _load_checkpoint(checkpoint_path)
+        checkpoint = _load_checkpoint(checkpoint_path, expected_manifest=manifest)
         loaded = checkpoint.get("records", [])
         seen_keys: set[tuple[Any, ...]] = set()
         records = []
@@ -353,10 +519,31 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     )
                     elapsed = time.perf_counter() - started
                     text = " ".join(segment.text for segment in transcript.segments).strip()
+                    segments_payload = [
+                        {
+                            "id": segment.id,
+                            "start": segment.start,
+                            "end": segment.end,
+                            "text": segment.text,
+                            "confidence": segment.confidence,
+                        }
+                        for segment in transcript.segments
+                    ]
+                    effective_config = getattr(processed, "configuration", None) or {}
+                    input_audio_sha = _hash_file(Path(processed.dsp_path))
+                    artifact_path = None
+                    if keep_asr_input:
+                        artifact_dir = out_dir / "artifacts" / "tier1" / talk.talk_id / condition
+                        artifact_dir.mkdir(parents=True, exist_ok=True)
+                        artifact_path = artifact_dir / "asr_input.wav"
+                        shutil.copyfile(processed.dsp_path, artifact_path)
                     wer_value = evaluate.wer(talk.reference, text)
                     cer_value = evaluate.cer(talk.reference, text)
+                    wer_edits, wer_ref_words = evaluate.wer_counts(talk.reference, text)
+                    cer_edits, cer_ref_chars = evaluate.cer_counts(talk.reference, text)
+                    term_recovered, term_eligible = evaluate.term_counts(talk.reference, text, talk.terms)
                     term_acc, terms_present = evaluate.term_accuracy(talk.reference, text, talk.terms)
-                    kter_value = 0.0 if terms_present == 0 or term_acc != term_acc else float(term_acc)
+                    term_presence_recall = None if term_eligible == 0 or term_acc != term_acc else float(term_acc)
                     rtf = elapsed / max(audio_duration, 1e-9)
                     improvement = None
                     if is_noisy:
@@ -367,7 +554,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
 
                     print(
                         f"    WER {wer_value:.1%} | CER {cer_value:.1%} | "
-                        f"KTER {kter_value:.1%} | RTF {rtf:.2f} | {elapsed:.1f}s",
+                        f"TermPresence {0.0 if term_presence_recall is None else term_presence_recall:.1%} | RTF {rtf:.2f} | {elapsed:.1f}s",
                         flush=True,
                     )
                     records.append(
@@ -383,8 +570,29 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                             "noise_seed": seed,
                             "wer": float(wer_value),
                             "cer": float(cer_value),
-                            "kter": float(kter_value),
-                            "terms_present": int(terms_present),
+                            "wer_edits": int(wer_edits),
+                            "wer_ref_count": int(wer_ref_words),
+                            "wer_ref_words": int(wer_ref_words),
+                            "cer_edits": int(cer_edits),
+                            "cer_ref_count": int(cer_ref_chars),
+                            "cer_ref_chars": int(cer_ref_chars),
+                            "term_presence_recall": term_presence_recall,
+                            "kter": term_presence_recall,
+                            "term_source": "acl6060_bracketed",
+                            "terms_source": "acl6060_bracketed",
+                            "recovered_terms": int(term_recovered),
+                            "eligible_terms": int(term_eligible),
+                            "terms_recovered": int(term_recovered),
+                            "terms_eligible": int(term_eligible),
+                            "terms_present": int(term_eligible),
+                            "reference": talk.reference,
+                            "hypothesis": text,
+                            "segments": segments_payload,
+                            "effective_config": effective_config,
+                            "input_audio_sha256": input_audio_sha,
+                            "reference_sha256": _hash_text(talk.reference),
+                            "hypothesis_sha256": _hash_text(text),
+                            "asr_input_artifact": str(artifact_path) if artifact_path is not None else None,
                             "signal_snr_improvement_db": _safe_float(improvement),
                             "rtf": float(rtf),
                             "seconds": float(elapsed),
@@ -396,7 +604,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     if not keep_media:
                         _atomic_write_json(
                             checkpoint_path,
-                            {"schema_version": 1, "records": records},
+                            {"schema_version": CHECKPOINT_SCHEMA_VERSION, "metric_version": METRIC_VERSION, "run_manifest": manifest, "records": records},
                         )
                         shutil.rmtree(media_root, ignore_errors=True)
 
@@ -412,7 +620,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     write_json(out_dir / "tier1_acl_results.json", records)
     write_json(out_dir / "tier1_acl_summary.json", summary)
     write_csv(out_dir / "tier1_acl_results.csv", records, TIER1_CSV)
-    _atomic_write_json(checkpoint_path, {"schema_version": 1, "records": records})
+    _atomic_write_json(checkpoint_path, {"schema_version": CHECKPOINT_SCHEMA_VERSION, "metric_version": METRIC_VERSION, "run_manifest": manifest, "records": records})
     return records, summary
 
 
@@ -442,6 +650,7 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     checkpoint_path = Path(getattr(args, "checkpoint", None) or (out_dir / "tier2_checkpoint.json")).expanduser().resolve()
     resume = bool(getattr(args, "resume", True))
     keep_media = bool(getattr(args, "keep_media", False))
+    keep_asr_input = bool(getattr(args, "keep_asr_input", False))
     if not resume and checkpoint_path.exists():
         checkpoint_path.unlink(missing_ok=True)
 
@@ -450,8 +659,17 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
 
+    manifest = _run_manifest(
+        tier=2,
+        args=args,
+        settings=settings,
+        talks=clips,
+        conditions=conditions,
+        noise_type="none",
+        snr_values=[None],
+    )
     if resume:
-        checkpoint = _load_checkpoint(checkpoint_path)
+        checkpoint = _load_checkpoint(checkpoint_path, expected_manifest=manifest)
         loaded = checkpoint.get("records", [])
         seen_keys: set[tuple[Any, ...]] = set()
         records = []
@@ -512,10 +730,31 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
             )
             elapsed = time.perf_counter() - started
             text = " ".join(segment.text for segment in transcript.segments).strip()
+            segments_payload = [
+                {
+                    "id": segment.id,
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text,
+                    "confidence": segment.confidence,
+                }
+                for segment in transcript.segments
+            ]
+            effective_config = getattr(processed, "configuration", None) or {}
+            input_audio_sha = _hash_file(Path(processed.dsp_path))
+            artifact_path = None
+            if keep_asr_input:
+                artifact_dir = out_dir / "artifacts" / "tier2" / clip.clip_id / condition
+                artifact_dir.mkdir(parents=True, exist_ok=True)
+                artifact_path = artifact_dir / "asr_input.wav"
+                shutil.copyfile(processed.dsp_path, artifact_path)
             wer_value = evaluate.wer(clip.reference, text)
             cer_value = evaluate.cer(clip.reference, text)
+            wer_edits, wer_ref_words = evaluate.wer_counts(clip.reference, text)
+            cer_edits, cer_ref_chars = evaluate.cer_counts(clip.reference, text)
+            term_recovered, term_eligible = evaluate.term_counts(clip.reference, text, clip.terms)
             term_acc, terms_present = evaluate.term_accuracy(clip.reference, text, clip.terms)
-            kter_value = 0.0 if terms_present == 0 or term_acc != term_acc else float(term_acc)
+            term_presence_recall = None if term_eligible == 0 or term_acc != term_acc else float(term_acc)
             nshr = nshr_for_segments(transcript.segments, clip.speech_intervals)
             duration = _m3av_duration(clip, audio_duration)
             rtf = elapsed / max(duration, 1e-9)
@@ -531,8 +770,29 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     "condition": condition,
                     "wer": float(wer_value),
                     "cer": float(cer_value),
-                    "kter": float(kter_value),
-                    "terms_present": int(terms_present),
+                    "wer_edits": int(wer_edits),
+                    "wer_ref_count": int(wer_ref_words),
+                    "wer_ref_words": int(wer_ref_words),
+                    "cer_edits": int(cer_edits),
+                    "cer_ref_count": int(cer_ref_chars),
+                    "cer_ref_chars": int(cer_ref_chars),
+                    "term_presence_recall": term_presence_recall,
+                    "kter": term_presence_recall,
+                    "term_source": "m3av_capitalized_heuristic",
+                    "terms_source": "m3av_capitalized_heuristic",
+                    "recovered_terms": int(term_recovered),
+                    "eligible_terms": int(term_eligible),
+                    "terms_recovered": int(term_recovered),
+                    "terms_eligible": int(term_eligible),
+                    "terms_present": int(term_eligible),
+                    "reference": clip.reference,
+                    "hypothesis": text,
+                    "segments": segments_payload,
+                    "effective_config": effective_config,
+                    "input_audio_sha256": input_audio_sha,
+                    "reference_sha256": _hash_text(clip.reference),
+                    "hypothesis_sha256": _hash_text(text),
+                    "asr_input_artifact": str(artifact_path) if artifact_path is not None else None,
                     "nshr": float(nshr),
                     "rtf": float(rtf),
                     "seconds": float(elapsed),
@@ -544,7 +804,7 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
             if not keep_media:
                 _atomic_write_json(
                     checkpoint_path,
-                    {"schema_version": 1, "records": records},
+                    {"schema_version": CHECKPOINT_SCHEMA_VERSION, "metric_version": METRIC_VERSION, "run_manifest": manifest, "records": records},
                 )
                 shutil.rmtree(media_root, ignore_errors=True)
 
@@ -556,7 +816,7 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     write_json(out_dir / "tier2_m3av_results.json", records)
     write_json(out_dir / "tier2_m3av_summary.json", summary)
     write_csv(out_dir / "tier2_m3av_results.csv", records, TIER2_CSV)
-    _atomic_write_json(checkpoint_path, {"schema_version": 1, "records": records})
+    _atomic_write_json(checkpoint_path, {"schema_version": CHECKPOINT_SCHEMA_VERSION, "metric_version": METRIC_VERSION, "run_manifest": manifest, "records": records})
     return records, summary
 
 
@@ -593,6 +853,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-resume", dest="resume", action="store_false")
     parser.add_argument("--checkpoint", default=None, help="optional checkpoint path; defaults to out/tier*_checkpoint.json")
     parser.add_argument("--keep-media", action="store_true", default=False, help="retain generated DSP media and mixed noise WAVs")
+    parser.add_argument("--keep-asr-input", action="store_true", default=False, help="retain the exact WAV passed to ASR for every completed condition")
     return parser
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from app import eval_data
+from app import eval_data, evaluate
 
 
 def test_extract_bracketed_terms_deduplicates():
@@ -88,3 +88,30 @@ def test_aggregate_records_computes_mean_and_stdev():
     assert rows[0]["count"] == 2
     assert rows[0]["wer_mean"] == pytest.approx(0.2)
     assert rows[0]["wer_std"] == pytest.approx(0.141421356)
+
+
+def test_aggregate_records_std_is_none_with_one_observation():
+    records = [{"condition": "hp", "wer": 0.2, "wer_edits": 2, "wer_ref_count": 10}]
+    rows = eval_data.aggregate_records(records, ["condition"], ["wer"])
+    assert rows[0]["wer_valid_observations"] == 1
+    assert rows[0]["wer_std"] is None
+    assert rows[0]["wer_corpus"] == pytest.approx(0.2)
+
+
+def test_aggregate_records_does_not_pool_edits_across_metrics():
+    records = [
+        {"condition": "hp", "wer": 0.1, "wer_edits": 1, "wer_ref_count": 10},
+        {"condition": "hp", "wer": 0.3, "wer_edits": 3, "wer_ref_count": 10},
+    ]
+    rows = eval_data.aggregate_records(records, ["condition"], ["wer"])
+    assert rows[0]["wer_mean"] == pytest.approx(0.2)
+    assert rows[0]["wer_corpus"] == pytest.approx(4.0 / 20.0)
+
+
+def test_term_presence_recall_zero_eligible_is_none():
+    recovered, eligible = evaluate.term_counts(
+        "hello world", "hello world", ["Wavelet", "Neural Widget"]
+    )
+    assert recovered == 0
+    assert eligible == 0
+    assert evaluate.term_accuracy("hello world", "hello world", ["wavelet"])[1] == 0

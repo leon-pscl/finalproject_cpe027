@@ -36,10 +36,15 @@ class DspReport:
     seconds: float = 0.0
     duration: float = 0.0
     speech_ratio: float = 0.0  # share of frames the VAD marks as speech
-    snr_est_before_db: float = (
-        0.0  # P90 - P10 frame level: scale-free SNR proxy (no clean reference exists)
-    )
+    # Diagnostic only: this is P90-P10 of frame RMS levels, not reference-based SNR.
+    snr_est_before_db: float = 0.0
     snr_est_after_db: float = 0.0
+    frame_level_db_percentile_spread_before_db: float = 0.0
+    frame_level_db_percentile_spread_after_db: float = 0.0
+    frame_level_db_spread_before_db: float = 0.0
+    frame_level_db_spread_after_db: float = 0.0
+    frame_level_percentile_spread_before_db: float = 0.0
+    frame_level_percentile_spread_after_db: float = 0.0
     rt60_assumed: float = 0.5
     floor_db: float = -15.0
     error: str | None = None
@@ -159,7 +164,7 @@ def strip_silence(
         orig_start_s = p_start / sr
         orig_end_s = p_end / sr
         offset_map.append((orig_start_s, orig_end_s, current_stripped))
-        current_stripped = (p_end - p_start) / sr
+        current_stripped += (p_end - p_start) / sr
 
     if not stripped_parts:
         # No speech detected – return original audio unchanged and an identity map.
@@ -256,9 +261,13 @@ def _frame_db(x: np.ndarray, frame: int = 320) -> np.ndarray:
     return 10 * np.log10((f**2).mean(axis=1) + EPS)
 
 
-def snr_proxy(x: np.ndarray) -> float:
+def frame_level_db_percentile_spread(x: np.ndarray) -> float:
     db = _frame_db(x)
     return float(np.percentile(db, 90) - np.percentile(db, 10))
+
+
+# Backwards-compatible name for the diagnostic frame-level spread.
+snr_proxy = frame_level_db_percentile_spread
 
 
 def normalize_loudness(x: np.ndarray, target_db: float = TARGET_RMS_DB) -> np.ndarray:
@@ -287,12 +296,19 @@ def enhance(
     x: np.ndarray,
     rt60: float = 0.5,
     floor_db: float = -15.0,
-    reverb_weight: float = 1.0,
+    reverb_weight: float = 0.0,
     noise_bias: float = 1.5,
     method: str = "wiener",
     use_vad_held: bool = True,
     on_progress: Callable[[float], None] | None = None,
+    high_pass_enabled: bool = True,
+    dereverberation_enabled: bool = True,
+    spectral_enhancement_enabled: bool = True,
+    output_level_adjustment_enabled: bool = True,
+    dc_removal_enabled: bool = True,
 ) -> tuple[np.ndarray, DspReport]:
+    if not dereverberation_enabled:
+        reverb_weight = 0.0
     t0 = time.time()
     x = np.asarray(x, dtype=np.float32)
     report = DspReport(duration=len(x) / SR, rt60_assumed=rt60, floor_db=floor_db)
@@ -301,15 +317,40 @@ def enhance(
         report.error = "audio too short to enhance"
         return x, report
 
-    x = x - float(x.mean())
-    sos = signal.butter(4, 80, btype="highpass", fs=SR, output="sos")
-    x = signal.sosfiltfilt(sos, x).astype(np.float32)
+    if not spectral_enhancement_enabled:
+        # Preserve independent stage routing: no Wiener/spectral-subtraction
+        # enhancement, but still apply the shared output-level policy below.
+        out = x
+        if output_level_adjustment_enabled:
+            out = normalize_loudness(out)
+        spread_before = frame_level_db_percentile_spread(x)
+        spread_after = frame_level_db_percentile_spread(out)
+        report.snr_est_before_db = spread_before
+        report.snr_est_after_db = spread_after
+        report.frame_level_db_percentile_spread_before_db = spread_before
+        report.frame_level_db_percentile_spread_after_db = spread_after
+        report.frame_level_db_spread_before_db = spread_before
+        report.frame_level_db_spread_after_db = spread_after
+        report.frame_level_percentile_spread_before_db = spread_before
+        report.frame_level_percentile_spread_after_db = spread_after
+        report.seconds = time.time() - t0
+        report.applied = True
+        return out, report
 
     if method == "spectral_subtraction":
         out = spectral_subtract(x)
-        out = normalize_loudness(out)
-        report.snr_est_before_db = snr_proxy(x)
-        report.snr_est_after_db = snr_proxy(out)
+        if output_level_adjustment_enabled:
+            out = normalize_loudness(out)
+        spread_before = frame_level_db_percentile_spread(x)
+        spread_after = frame_level_db_percentile_spread(out)
+        report.snr_est_before_db = spread_before
+        report.snr_est_after_db = spread_after
+        report.frame_level_db_percentile_spread_before_db = spread_before
+        report.frame_level_db_percentile_spread_after_db = spread_after
+        report.frame_level_db_spread_before_db = spread_before
+        report.frame_level_db_spread_after_db = spread_after
+        report.frame_level_percentile_spread_before_db = spread_before
+        report.frame_level_percentile_spread_after_db = spread_after
         report.seconds = time.time() - t0
         return out, report
     # Wiener method (default)
@@ -320,16 +361,28 @@ def enhance(
     for i, s in enumerate(starts):
         a, b = max(0, s - ctx), min(len(x), s + core + ctx)
         y, speech = _enhance_block(x[a:b], rt60, floor_db, reverb_weight, noise_bias, use_vad_held)
-        out[s : min(len(x), s + core)] = y[s - a : s - a + min(core, len(x) - s)]
-        speech_frames = int(speech.sum())
-        total_frames = len(speech)
+        core_len = min(core, len(x) - s)
+        out[s : s + core_len] = y[s - a : s - a + core_len]
+        core_start = s - a
+        core_speech = speech[core_start : core_start + core_len]
+        speech_frames += int(core_speech.sum())
+        total_frames += int(len(core_speech))
         if on_progress:
             on_progress((i + 1) / len(starts))
 
-    out = normalize_loudness(out)
+    if output_level_adjustment_enabled:
+        out = normalize_loudness(out)
+    spread_before = frame_level_db_percentile_spread(x)
+    spread_after = frame_level_db_percentile_spread(out)
     report.speech_ratio = speech_frames / max(1, total_frames)
-    report.snr_est_before_db = snr_proxy(x)
-    report.snr_est_after_db = snr_proxy(out)
+    report.snr_est_before_db = spread_before
+    report.snr_est_after_db = spread_after
+    report.frame_level_db_percentile_spread_before_db = spread_before
+    report.frame_level_db_percentile_spread_after_db = spread_after
+    report.frame_level_db_spread_before_db = spread_before
+    report.frame_level_db_spread_after_db = spread_after
+    report.frame_level_percentile_spread_before_db = spread_before
+    report.frame_level_percentile_spread_after_db = spread_after
     report.seconds = time.time() - t0
     return out, report
 
