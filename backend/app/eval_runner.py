@@ -693,7 +693,8 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                         }
                     )
                     if getattr(args, "save_waveforms", False):
-                        wave_dir = out_dir / "waveforms" / "tier1" / talk.talk_id / condition
+                        run_tag = f"{noise_label.replace(':', '_')}_snr{snr_db if snr_db is not None else 'clean'}"
+                        wave_dir = out_dir / "waveforms" / "tier1" / talk.talk_id / condition / run_tag
                         _save_waveform_png(Path(processed.dsp_path), wave_dir / "waveform.png")
                     completed.add(condition_key)
                     if not keep_media:
