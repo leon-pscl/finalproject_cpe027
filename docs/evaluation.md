@@ -24,7 +24,32 @@ Expected extracted inputs:
 
 ### M3AV Extraction (prerequisite)
 
-The M3AV audio archive is split into `dataset_v1.0_onlyaudio.tar.gz.00`..`.08`.
+Verified Tier 2 smoke-test setup:
+
+```powershell
+cd "E:\Datasets\M3AV\local"
+tar -xzf dataset_v1.0_noaudio.tar.gz
+
+cd "E:\Datasets\M3AV\local\dataset_v1.0_onlyaudio_tar_gz"
+copy /b dataset_v1.0_onlyaudio.tar.gz.* dataset_v1.0_onlyaudio.tar.gz
+tar -xzf dataset_v1.0_onlyaudio.tar.gz "dataset_v1.0_onlyaudio\CHI-89589.flac"
+
+Copy-Item "E:\Datasets\M3AV\local\dataset_v1.0_onlyaudio_tar_gz\dataset_v1.0_onlyaudio\CHI-89589.flac" `
+  "E:\Datasets\M3AV\local\dataset_v1.0_noaudio\CHI-89589\audio.flac"
+```
+
+The Tier 2 loader supports `.wav`, `.flac`, `.mp4`, `.m4a`, `.mkv`, `.mov`,
+and `.avi` audio files. If you copy the audio into each annotation clip directory
+and use:
+
+```powershell
+--m3av-root "E:\Datasets\M3AV\local\dataset_v1.0_noaudio"
+```
+
+the loader will discover `CHI-89589/audio.flac` automatically. For a full
+M3AV root, preserve the same `clip_id/speech/final+timestamps.json` structure.
+
+### M3AV audio archive commands
 Concatenate and extract only the needed subset on Windows:
 
 ```powershell
@@ -168,6 +193,51 @@ python -m app.eval_runner --tier 1 --split eval ...
 This override applies only to the evaluation command/session. Production keeps
 `WHISPER_LANGUAGE=` empty so the ASR stage can auto-detect Filipino/English
 code-switching.
+
+## Checkpointing And Resuming
+
+The runner can resume interrupted work with the default checkpoint file:
+
+- Tier 1: `out/tier1_checkpoint.json`
+- Tier 2: `out/tier2_checkpoint.json`
+
+Resume is on by default. Rerun the same command after an interruption:
+
+```powershell
+python -m app.eval_runner --tier 1 --split eval ...
+```
+
+Start fresh if needed:
+
+```powershell
+python -m app.eval_runner --tier 1 --split eval --no-resume ...
+```
+
+Use a custom checkpoint:
+
+```powershell
+python -m app.eval_runner --tier 1 --split eval --checkpoint E:\checkpoints\tier1.json
+```
+
+## Generated Audio Cleanup
+
+By default, the runner deletes the generated media and noise files after each
+completed condition. Results, metrics, and DSP diagnostics remain in the JSON/CSV
+files.
+
+Keep temporary files for debugging:
+
+```powershell
+python -m app.eval_runner --tier 1 --split eval --keep-media --out ..\eval_debug
+```
+
+Deleted folders include:
+
+- `tier1_media/`
+- `tier1_noise/`
+- `tier2_media/`
+
+Source M3AV audio and archive parts are never deleted.
 
 ## Sample Size
 

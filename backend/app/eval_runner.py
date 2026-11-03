@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -73,6 +75,44 @@ TIER2_CSV = [
     "language",
 ]
 RELEVANT_DEMAND_ENVS = ("DKITCHEN", "DLIVING", "DWASHING")
+
+
+def _load_checkpoint(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"schema_version": 1, "records": []}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (json.JSONDecodeError, OSError):
+        return {"schema_version": 1, "records": []}
+    if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
+        return {"schema_version": 1, "records": []}
+    return payload
+
+
+def _atomic_write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    with temp.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, allow_nan=False)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp, path)
+
+
+def _tier1_record_key(record: dict[str, Any]) -> tuple[Any, ...]:
+    snr = record.get("snr_db")
+    return (
+        record.get("split"),
+        record.get("talk_id"),
+        record.get("noise_type"),
+        None if snr is None else float(snr),
+        record.get("condition"),
+    )
+
+
+def _tier2_record_key(record: dict[str, Any]) -> tuple[Any, ...]:
+    return (record.get("clip_id"), record.get("condition"))
 
 
 def _safe_float(value: Any) -> float | None:
@@ -141,10 +181,7 @@ def _tier1_noise_file(args: argparse.Namespace) -> tuple[str, Path | None]:
     if lowered == "none":
         return "none", None
     if lowered == "demand":
-        env_name = str(args.demand_env).strip()
-        demand_root = Path(args.demand_root or (Path(args.data_root or EVAL_DATA_ROOT) / "DEMAND"))
-        env_root = demand_root / env_name
-        return f"demand:{env_name}", demand_noise_file(env_root)
+        return "demand", None
     candidate = Path(noise)
     if candidate.is_file():
         return f"wav:{candidate.name}", candidate
@@ -169,14 +206,21 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     noisy_input_dir = out_dir / "tier1_noise"
     noisy_input_dir.mkdir(parents=True, exist_ok=True)
 
+    checkpoint_path = Path(getattr(args, "checkpoint", None) or (out_dir / "tier1_checkpoint.json")).expanduser().resolve()
+    resume = bool(getattr(args, "resume", True))
+    keep_media = bool(getattr(args, "keep_media", False))
+    if not resume and checkpoint_path.exists():
+        checkpoint_path.unlink(missing_ok=True)
+
     noise_type, noise_file = _tier1_noise_file(args)
     demand_envs = [item.strip() for item in str(args.demand_envs).split(",") if item.strip()]
     if noise_type == "demand" and not demand_envs:
         demand_envs = list(RELEVANT_DEMAND_ENVS)
     if noise_type == "demand":
         # When multiple environments are requested, run them as separate records.
+        demand_root = Path(args.demand_root or (Path(args.data_root or EVAL_DATA_ROOT) / "DEMAND"))
         noise_specs = [
-            (f"demand:{env}", Path(args.demand_root or (Path(args.data_root or EVAL_DATA_ROOT) / "DEMAND")) / env)
+            (f"demand:{env}", demand_noise_file(demand_root / env))
             for env in demand_envs
         ]
     else:
@@ -188,14 +232,49 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
 
-    records: list[dict[str, Any]] = []
+    if resume:
+        checkpoint = _load_checkpoint(checkpoint_path)
+        loaded = checkpoint.get("records", [])
+        seen_keys: set[tuple[Any, ...]] = set()
+        records = []
+        for record in (r for r in loaded if isinstance(r, dict)):
+            key = _tier1_record_key(record)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                records.append(record)
+    else:
+        records = []
+    completed = {_tier1_record_key(record) for record in records}
+    records_before = len(records)
+
     for talk in talks:
         clean_audio = None
         for spec_noise_type, spec_noise_file in noise_specs:
             # Lazily load noise once per specification.
             noise_audio = load_noise_audio(spec_noise_file) if spec_noise_file is not None else None
             for snr_db in snr_values:
+                noisy_path = None
                 is_noisy = spec_noise_file is not None and snr_db is not None
+                noise_label = spec_noise_type if is_noisy else "none"
+                snr_value = float(snr_db) if snr_db is not None else None
+                unit_keys = {
+                    _tier1_record_key(
+                        {
+                            "split": talk.split,
+                            "talk_id": talk.talk_id,
+                            "noise_type": noise_label,
+                            "snr_db": snr_value,
+                            "condition": condition,
+                        }
+                    )
+                    for condition in conditions
+                }
+                if unit_keys.issubset(completed):
+                    print(
+                        f"  {talk.talk_id} | {noise_label} | SNR={snr_value} | already complete; skipping",
+                        flush=True,
+                    )
+                    continue
                 if is_noisy:
                     clean_audio = dsp.load_audio(_clean_audio_path(talk))
                     seed = noise_seed_for(
@@ -213,10 +292,26 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                 else:
                     seed = None
                     noisy_audio = None
+                    noisy_path = None
                     input_path = talk.audio_path
 
                 for condition in conditions:
                     snr_label = "clean" if snr_db is None else f"{snr_db:g} dB"
+                    condition_key = _tier1_record_key(
+                        {
+                            "split": talk.split,
+                            "talk_id": talk.talk_id,
+                            "noise_type": noise_label,
+                            "snr_db": snr_value,
+                            "condition": condition,
+                        }
+                    )
+                    if condition_key in completed:
+                        print(
+                            f"  {talk.talk_id} | {noise_label} | SNR={snr_label} | {condition} | already complete; skipping",
+                            flush=True,
+                        )
+                        continue
                     print(
                         f"  {talk.talk_id} | {spec_noise_type} | SNR={snr_label} | {condition}",
                         flush=True,
@@ -297,6 +392,19 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                             "dsp": processed.diagnostics,
                         }
                     )
+                    completed.add(condition_key)
+                    if not keep_media:
+                        _atomic_write_json(
+                            checkpoint_path,
+                            {"schema_version": 1, "records": records},
+                        )
+                        shutil.rmtree(media_root, ignore_errors=True)
+
+                if is_noisy and noisy_path is not None and not keep_media:
+                    try:
+                        noisy_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     group_keys = ["condition", "noise_type", "snr_db"]
     summary = aggregate_records(records, group_keys, TIER1_METRICS)
@@ -304,6 +412,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     write_json(out_dir / "tier1_acl_results.json", records)
     write_json(out_dir / "tier1_acl_summary.json", summary)
     write_csv(out_dir / "tier1_acl_results.csv", records, TIER1_CSV)
+    _atomic_write_json(checkpoint_path, {"schema_version": 1, "records": records})
     return records, summary
 
 
@@ -330,14 +439,44 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
 
     out_dir = Path(args.out).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = Path(getattr(args, "checkpoint", None) or (out_dir / "tier2_checkpoint.json")).expanduser().resolve()
+    resume = bool(getattr(args, "resume", True))
+    keep_media = bool(getattr(args, "keep_media", False))
+    if not resume and checkpoint_path.exists():
+        checkpoint_path.unlink(missing_ok=True)
+
     conditions = [item.strip() for item in str(args.conditions).split(",") if item.strip()]
     for condition in conditions:
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
 
-    records: list[dict[str, Any]] = []
+    if resume:
+        checkpoint = _load_checkpoint(checkpoint_path)
+        loaded = checkpoint.get("records", [])
+        seen_keys: set[tuple[Any, ...]] = set()
+        records = []
+        for record in (r for r in loaded if isinstance(r, dict)):
+            key = _tier2_record_key(record)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                records.append(record)
+    else:
+        records = []
+    completed = {_tier2_record_key(record) for record in records}
+
     for clip in clips:
+        clip_condition_keys = {
+            _tier2_record_key({"clip_id": clip.clip_id, "condition": condition})
+            for condition in conditions
+        }
+        if clip_condition_keys.issubset(completed):
+            print(f"  {clip.clip_id} | already complete; skipping", flush=True)
+            continue
         for condition in conditions:
+            condition_key = _tier2_record_key({"clip_id": clip.clip_id, "condition": condition})
+            if condition_key in completed:
+                print(f"  {clip.clip_id} | {condition} | already complete; skipping", flush=True)
+                continue
             print(f"  {clip.clip_id} | {condition}", flush=True)
             config = _condition_config(condition, settings)
             media_root = out_dir / "tier2_media" / clip.clip_id / condition
@@ -401,6 +540,13 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     "dsp": processed.diagnostics,
                 }
             )
+            completed.add(condition_key)
+            if not keep_media:
+                _atomic_write_json(
+                    checkpoint_path,
+                    {"schema_version": 1, "records": records},
+                )
+                shutil.rmtree(media_root, ignore_errors=True)
 
     bucket_summary = aggregate_records(records, ["condition", "duration_bucket"], TIER2_METRICS)
     overall_summary = aggregate_records(records, ["condition"], TIER2_METRICS)
@@ -410,6 +556,7 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     write_json(out_dir / "tier2_m3av_results.json", records)
     write_json(out_dir / "tier2_m3av_summary.json", summary)
     write_csv(out_dir / "tier2_m3av_results.csv", records, TIER2_CSV)
+    _atomic_write_json(checkpoint_path, {"schema_version": 1, "records": records})
     return records, summary
 
 
@@ -442,6 +589,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-root", default=None)
     parser.add_argument("--out", default="eval_results")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--resume", action="store_true", default=True)
+    parser.add_argument("--no-resume", dest="resume", action="store_false")
+    parser.add_argument("--checkpoint", default=None, help="optional checkpoint path; defaults to out/tier*_checkpoint.json")
+    parser.add_argument("--keep-media", action="store_true", default=False, help="retain generated DSP media and mixed noise WAVs")
     return parser
 
 

@@ -291,10 +291,12 @@ M3AV_STOPWORDS = {
 def _find_audio_file(clip_root: Path) -> Path | None:
     direct = [
         clip_root / "audio.wav",
+        clip_root / "audio.flac",
         clip_root / "audio.mp4",
         clip_root / "audio.m4a",
         clip_root / "audio.mkv",
         clip_root / f"{clip_root.name}.wav",
+        clip_root / f"{clip_root.name}.flac",
         clip_root / f"{clip_root.name}.mp4",
         clip_root / f"{clip_root.name}.m4a",
     ]
@@ -308,7 +310,7 @@ def _find_audio_file(clip_root: Path) -> Path | None:
                 matches = sorted(candidate_dir.glob(f"*{ext}"))
                 if matches:
                     return matches[0]
-    media_exts = {".wav", ".mp4", ".m4a", ".mkv", ".mov", ".avi"}
+    media_exts = {".wav", ".flac", ".mp4", ".m4a", ".mkv", ".mov", ".avi"}
     found = sorted(
         path
         for path in clip_root.rglob("*")
