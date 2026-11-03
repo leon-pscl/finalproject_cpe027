@@ -811,9 +811,24 @@ async function failure(res: Response): Promise<Error> {
 }
 
 /** Uploads the recording; the backend transcribes it with a pretrained Whisper model. */
-export async function submitTranscription(file: File): Promise<{ id: string }> {
+export interface SubmitTranscriptionOptions {
+  high_pass_enabled?: boolean;
+  high_pass_cutoff_hz?: number;
+  background_noise_reduction_enabled?: boolean;
+}
+
+export async function submitTranscription(
+  file: File,
+  processingOptions?: SubmitTranscriptionOptions,
+): Promise<{ id: string }> {
   const body = new FormData();
   body.append('file', file);
+  if (processingOptions) {
+    body.append('processing_options', JSON.stringify({
+      schema_version: '1',
+      ...processingOptions,
+    }));
+  }
   const res = await fetch('/api/transcriptions', { method: 'POST', body });
   if (!res.ok) throw await failure(res);
   return res.json();

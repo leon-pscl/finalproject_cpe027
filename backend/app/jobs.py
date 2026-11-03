@@ -31,6 +31,9 @@ class Job:
     updated_at: float = field(default_factory=time.time)
     path: str | None = None
     enhance: bool | None = None
+    # Validated server profile persisted when the job is accepted. None means use
+    # the conservative server baseline.
+    processing_options: dict | None = None
     phase: str = "queued"  # queued | enhancing | transcribing | done
     dsp: dict | None = None
     dsp_audio_path: str | None = None
@@ -48,9 +51,9 @@ class JobStore:
         self._jobs_dir = os.path.join(self._storage_root, "jobs")
         os.makedirs(self._jobs_dir, exist_ok=True)
 
-    def submit(self, path: str, enhance: bool | None = None) -> Job:
+    def submit(self, path: str, enhance: bool | None = None, processing_options: dict | None = None) -> Job:
         self._expire()
-        job = Job(id=uuid.uuid4().hex, path=path, enhance=enhance)
+        job = Job(id=uuid.uuid4().hex, path=path, enhance=enhance, processing_options=processing_options)
         with self._lock:
             self._jobs[job.id] = job
         self._persist_job(job)
@@ -116,6 +119,7 @@ class JobStore:
                 "updated_at": job.updated_at,
                 "path": None,
                 "enhance": job.enhance,
+                "processing_options": job.processing_options,
                 "phase": job.phase,
                 "dsp": job.dsp,
                 "dsp_audio_path": job.dsp_audio_path,
@@ -167,6 +171,7 @@ class JobStore:
             updated_at=updated_at,
             path=None,
             enhance=payload.get("enhance"),
+            processing_options=payload.get("processing_options"),
             phase=str(payload.get("phase", payload.get("status", "failed"))),
             dsp=payload.get("dsp"),
             dsp_audio_path=payload.get("dsp_audio_path"),
@@ -229,48 +234,50 @@ class JobStore:
                 return
 
         try:
-            from . import dsp
+            from pathlib import Path
+
+            from .media import LocalMediaService
 
             settings = get_settings()
-            audio_dir = os.path.join(settings.local_storage_root, "asr-dsp")
+            from .processing_profile import resolve_from_mapping
+
+            resolved_profile = resolve_from_mapping(settings, job.processing_options)
+            audio_dir = Path(settings.local_storage_root) / "asr-dsp"
             os.makedirs(audio_dir, exist_ok=True)
-            audio_path = os.path.join(audio_dir, f"{job.id}.wav")
-            try:
-                x = dsp.load_audio(job.path)
-                enhanced, report = dsp.enhance(
-                    x,
-                    method=getattr(settings, "dsp_method", "wiener"),
-                    rt60=float(settings.dsp_rt60),
-                    floor_db=float(settings.dsp_floor_db),
-                    reverb_weight=float(settings.dsp_reverb_weight),
-                    noise_bias=float(settings.dsp_noise_bias),
-                    use_vad_held=getattr(settings, "dsp_use_vad_held", True),
-                    on_progress=(lambda p: on_progress(0.1 * p))
-                    if on_progress
-                    else None,
-                )
-                dsp.write_wav(audio_path, enhanced)
-                job.dsp = report.as_dict() if hasattr(report, "as_dict") else report
-            except Exception as exc:  # noqa: BLE001 - DSP should never prevent transcription itself
-                job.dsp = {"applied": False, "error": f"{type(exc).__name__}: {exc}"}
-                try:
-                    dsp.write_wav(audio_path, dsp.load_audio(job.path))
-                except Exception:  # noqa: BLE001
-                    audio_path = None
-            job.dsp_audio_path = (
-                audio_path if audio_path and os.path.exists(audio_path) else None
+            media = LocalMediaService(settings, config=resolved_profile.config).validate_and_extract(
+                owner_id="local",
+                lecture_id=job.id,
+                source_path=Path(job.path) if job.path else None,
+                processing_version="v1",
+                output_root=audio_dir,
             )
-            if job.dsp_audio_path:
-                (job.dsp if isinstance(job.dsp, dict) else {}).setdefault(
-                    "audio_path", job.dsp_audio_path
-                )
-                (job.dsp if isinstance(job.dsp, dict) else {}).setdefault(
-                    "signed_url", f"/api/transcriptions/{job.id}/audio"
-                )
+            dsp_path = media["audio_asset"]["dsp_path"]
+            arm_a = media["diagnostics"]["arm_a"]
+            configuration = media["configuration"]
+
+            job.dsp_audio_path = dsp_path
+            job.dsp = {
+                "processing_profile": resolved_profile.requested_profile or "server-baseline",
+                "processing_schema_version": resolved_profile.schema_version,
+                "requested_profile": resolved_profile.requested_profile,
+                "level_policy_id": resolved_profile.level_policy_id,
+                "dsp_enabled": bool(media["dsp_enabled"]),
+                "configuration": configuration,
+                "operations": resolved_profile.operations_applied,
+                "audio_asset_id": f"asr-dsp/{job.id}.wav",
+                "sample_rate": arm_a.get("sample_rate"),
+                "channels": arm_a.get("channels"),
+                "duration_seconds": arm_a.get("duration_seconds"),
+                "stage_runtimes": media["stage_runtimes"],
+                "signed_url": f"/api/transcriptions/{job.id}/audio",
+                "requested_enhancement": bool(job.enhance),
+                "enhancement_status": "disabled",
+                "applied_enhancement": resolved_profile.applied_enhancement,
+            }
             job.updated_at = time.time()
             self._persist_job(job)
 
-            audio_for_asr = job.dsp_audio_path or job.path
+            audio_for_asr = dsp_path
             logger = logging.getLogger(__name__)
             logger.info("Starting ASR transcription for %s", audio_for_asr)
             # Continue progress monotonically from the DSP stage (0.1 -> 1.0),
@@ -300,7 +307,7 @@ class JobStore:
                 enhance=False,
             )
             if isinstance(job.dsp, dict) and isinstance(result.dsp, dict):
-                result.dsp.update(job.dsp)
+                result.dsp = {**result.dsp, **job.dsp}
             elif isinstance(job.dsp, dict):
                 result.dsp = job.dsp
             job.language, job.duration = result.language, result.duration

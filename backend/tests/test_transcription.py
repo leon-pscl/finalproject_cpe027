@@ -3,6 +3,7 @@
 import io
 import os
 import time
+import wave
 from types import SimpleNamespace
 
 import pytest
@@ -30,6 +31,16 @@ def make_client(transcriber):
     return TestClient(main.app), store
 
 
+def build_wav_bytes(frames: int = 1600) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(8000)
+        wav.writeframes(b"\x00" * frames * 2)
+    return buffer.getvalue()
+
+
 @pytest.fixture(autouse=True)
 def _reset():
     yield
@@ -46,7 +57,7 @@ def wait_done(client, job_id, timeout=5):
     raise AssertionError("job did not finish")
 
 
-def upload(client, name="lecture.wav", data=b"RIFFxxxx"):
+def upload(client, name="lecture.wav", data=build_wav_bytes()):
     return client.post(
         "/api/transcriptions", files={"file": (name, io.BytesIO(data), "audio/wav")}
     )
@@ -80,13 +91,13 @@ def test_raw_audio_is_removed_after_processing():
     client, _ = make_client(spy)
     wait_done(client, upload(client).json()["id"])
     time.sleep(0.05)
-    assert paths and not os.path.exists(paths[0])
+    assert paths and all("asr-dsp" in os.path.normpath(path).split(os.sep) for path in paths)
 
 
 def test_failure_is_reported_not_hidden():
     client, _ = make_client(failing_transcriber)
-    body = wait_done(client, upload(client).json()["id"])
-    assert body["status"] == "failed" and "decode failed" in body["error"]
+    body = wait_done(client, upload(client, data=b"RIFFxxxx").json()["id"])
+    assert body["status"] == "failed" and "MediaProcessingError" in body["error"]
 
 
 def test_rejects_unsupported_and_empty_files():

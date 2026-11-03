@@ -9,7 +9,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { normalizeMath } from '../services/notesMarkdown';
 import 'katex/dist/katex.min.css';
-import { generateTranscriptionNotes, type TranscriptNote } from '../services/api';
+import { generateTranscriptionNotes, type SubmitTranscriptionOptions, type TranscriptNote } from '../services/api';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
@@ -551,6 +551,11 @@ export default function NewRecordingPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileError, setSelectedFileError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [processingOptions, setProcessingOptions] = useState<SubmitTranscriptionOptions>({
+    high_pass_enabled: false,
+    high_pass_cutoff_hz: 80,
+    background_noise_reduction_enabled: false,
+  });
 
   useEffect(() => {
     if (!selectedFile) {
@@ -578,13 +583,57 @@ export default function NewRecordingPage() {
           <p className="font-mono text-sm uppercase tracking-widest">Review recording</p>
           <RecordingPreview src={previewUrl} />
           <p className="mt-2 break-all font-mono text-xs uppercase tracking-wide text-neutral-500">{selectedFile.name}</p>
+          <fieldset className="mt-4 space-y-2 rounded border border-neutral-300 bg-paper p-3 text-left">
+            <legend className="font-mono text-xs uppercase tracking-wide text-neutral-500">Audio preparation</legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={processingOptions.high_pass_enabled ?? false}
+                onChange={(event) =>
+                  setProcessingOptions((current) => ({ ...current, high_pass_enabled: event.target.checked }))
+                }
+                aria-describedby="high-pass-help"
+              />
+              <span>
+                <span className="font-medium">High-pass filter</span>
+                <span id="high-pass-help" className="block text-xs text-neutral-500">Reduces low-frequency rumble; may help fan or ventilation noise.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={processingOptions.background_noise_reduction_enabled ?? false}
+                onChange={(event) =>
+                  setProcessingOptions((current) => ({ ...current, background_noise_reduction_enabled: event.target.checked }))
+                }
+                aria-describedby="denoise-help"
+              />
+              <span>
+                <span className="font-medium">Background-noise reduction</span>
+                <span id="denoise-help" className="block text-xs text-neutral-500">Experimental; may alter speech.</span>
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                setProcessingOptions({
+                  high_pass_enabled: false,
+                  high_pass_cutoff_hz: 80,
+                  background_noise_reduction_enabled: false,
+                })
+              }
+              className="rounded border border-neutral-300 px-2 py-1 font-mono text-xs"
+            >
+              Reset to baseline
+            </button>
+          </fieldset>
           <div className="mt-4 flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => {
                 setSelectedFile(null);
                 setSelectedFileError(null);
-                start(selectedFile).catch((error: unknown) => {
+                start(selectedFile, processingOptions).catch((error: unknown) => {
                   setSelectedFileError(error instanceof Error ? error.message : 'Upload failed.');
                 });
               }}
@@ -626,11 +675,16 @@ export default function NewRecordingPage() {
               return;
             }
             setSelectedFileError(null);
+            setProcessingOptions({
+              high_pass_enabled: false,
+              high_pass_cutoff_hz: 80,
+              background_noise_reduction_enabled: false,
+            });
             setSelectedFile(file);
           }}
         />
       ) : null}
-      {stage === 'dsp' ? <LoadingBar label="Cleaning audio via DSP..." progress={Math.min(100, progress * 10)} /> : null}
+      {stage === 'dsp' ? <LoadingBar label="Preparing audio..." progress={Math.min(100, progress * 10)} /> : null}
 
       {stage === 'transcribing' ? (
         <LoadingBar label="Transcribing..." progress={Math.min(100, Math.max(0, (progress - 10) / 90 * 100))} />

@@ -82,6 +82,15 @@ class Settings(BaseSettings):
 
     # DSP
     dsp_version: str = "0"
+    processing_profile_version: str = "1"
+    dsp_experimental_controls_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "DSP_EXPERIMENTAL_CONTROLS_ENABLED",
+            "DSP_EXPERIMENTAL_CONTROLS_ENABLED",
+        ),
+    )
+    dsp_experimental_controls_enabled: bool = False
     dsp_method: Literal["wiener", "spectral_subtraction"] = Field(
         default="wiener", validation_alias=AliasChoices("DSP_METHOD", "dsp_method")
     )

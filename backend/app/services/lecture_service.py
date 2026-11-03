@@ -200,6 +200,25 @@ class LectureService:
 
         job_id = self._upload_job_id(lecture.lecture_id)
         existing_job = self.repository.get_job(owner_id, lecture.lecture_id, job_id)
+        try:
+            from app.processing_profile import resolve_from_mapping
+
+            requested_profile = resolve_from_mapping(self.settings, payload.processing_options)
+            requested_options = requested_profile.options.model_dump()
+        except ValueError as exc:
+            raise LectureServiceError(
+                ErrorCode.INVALID_REQUEST, str(exc)
+            ) from exc
+
+        if existing_job is not None and existing_job.processing_options not in (None, requested_options):
+            raise LectureServiceError(
+                ErrorCode.INVALID_REQUEST,
+                "Processing options do not match the existing job.",
+            )
+        persisted_options = requested_options
+        if existing_job is not None and existing_job.processing_options:
+            persisted_options = existing_job.processing_options
+
         if existing_job is None:
             if (
                 self.repository.count_jobs_today(owner_id)
@@ -216,6 +235,7 @@ class LectureService:
                 processing_version=DEFAULT_PROCESSING_VERSION,
                 stage=JobStage.QUEUED,
                 state="queued",
+                processing_options=persisted_options,
             )
         else:
             job = existing_job

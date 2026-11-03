@@ -34,7 +34,7 @@ export function stageLabel(stage: 'idle' | 'dsp' | 'transcribing' | 'generatingN
     case 'ready':
       return 'Ready';
     case 'dsp':
-      return 'Cleaning DSP';
+      return 'Preparing audio';
     case 'transcribing':
       return 'Transcribing';
     case 'generatingNotes':

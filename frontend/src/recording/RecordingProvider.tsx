@@ -229,15 +229,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
               return;
             }
             const segments = toTranscript(job);
-            const dsp = job.dsp;
-            const dspNote = dsp?.applied
-              ? ` Audio enhanced in ${(dsp.seconds ?? 0).toFixed(1)} s (estimated SNR ${(dsp.snr_est_before_db ?? 0).toFixed(1)} → ${(dsp.snr_est_after_db ?? 0).toFixed(1)} dB).`
-              : dsp?.error
-                ? ` Enhancement was skipped (${dsp.error}); the original audio was transcribed.`
-                : '';
+            const dsp = (job.dsp ?? null) as { [key: string]: unknown } | null;
+            const enhancementStatus = dsp && typeof dsp === 'object' && typeof dsp.enhancement_status === 'string' ? dsp.enhancement_status : 'disabled';
+    const dspNote = enhancementStatus === 'applied'
+      ? ` Audio enhanced in ${(Number(dsp?.seconds) || 0).toFixed(1)} s.`
+      : enhancementStatus === 'failed_fallback'
+        ? ' Enhancement was unavailable; prepared baseline audio was transcribed.'
+        : enhancementStatus === 'failed'
+          ? ' Audio preparation failed; see job diagnostics.'
+          : ' Audio prepared - enhancement disabled.';
             const note =
               segments.length === 0
-                ? 'No speech was detected in this recording.'
+                ? 'No speech was recognized in this transcription.'
                 : `Transcript ready: ${segments.length} segments${job.language ? ` (${job.language})` : ''}.${dspNote} Ask me about any part of the lecture.`;
             setChats((current) =>
               current.map((item) =>
@@ -299,7 +302,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const start = useCallback(
-    (file: File) => {
+    (file: File, processingOptions?: { high_pass_enabled?: boolean; high_pass_cutoff_hz?: number; background_noise_reduction_enabled?: boolean; }) => {
       const validation = validateAudio(file);
       if (!validation.isValid) {
         setFileError(validation.message ?? 'Unsupported file.');
@@ -330,7 +333,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
             : chat,
         ),
       );
-      const uploadPromise = submitTranscription(file)
+      const uploadPromise = submitTranscription(file, processingOptions)
         .then((job) => setChats((existing) => existing.map((chat) => (chat.id === id ? { ...chat, jobId: job.id } : chat))))
         .catch((error: unknown) => { failChat(id, error instanceof Error ? error.message : 'Upload failed.'); throw error; });
       setProgressById((current) => ({ ...current, [id]: 0 }));

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import tempfile
@@ -13,13 +14,15 @@ from pydantic import BaseModel
 
 from app.asr import Transcript
 from app.chunker import Chunker
-from app.contracts import AnswerResponse, Chunk, ErrorCode, NoteEntry
+from app.contracts import AnswerResponse, Chunk, ErrorCode, NoteEntry, ProcessingOptions
 from app.embedder import Embedder
 from app.routers import delete, dsp, lectures, notes, qa, storage
 
 from .config import get_settings
+from .processing_profile import resolve_from_mapping
 from .dependencies import get_repository, get_storage
 from .jobs import JobStore
+from .processing_profile import resolve_from_mapping
 from .worker import PipelineWorker
 
 logger = logging.getLogger(__name__)
@@ -162,13 +165,36 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 async def create_transcription(
     file: UploadFile = File(...),  # noqa: B008
     enhance: bool | None = Form(None),
+    processing_options: str | None = Form(None),
     store: JobStore = Depends(get_store),  # noqa: B008
 ) -> JobOut:
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(415, f"Unsupported file type '{ext}'. Use WAV, MP3 or M4A.")
 
-    limit = get_settings().max_upload_mb * CHUNK
+    request_options = None
+    if processing_options:
+        try:
+            request_options = json.loads(processing_options)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise HTTPException(422, f"Invalid processing options: {exc}") from exc
+        if not isinstance(request_options, dict):
+            raise HTTPException(422, "Processing options must be a JSON object")
+
+    settings = get_settings()
+    if enhance is True:
+        request_options = dict(request_options or {})
+        request_options["requested_legacy_enhance"] = True
+
+    try:
+        resolved = resolve_from_mapping(settings, request_options)
+    except ValueError as exc:
+        raise HTTPException(422, f"Invalid or unauthorized processing options: {exc}") from exc
+
+    options_payload = resolved.options.model_dump()
+    options_payload["requested_legacy_enhance"] = bool(enhance)
+
+    limit = settings.max_upload_mb * CHUNK
     size = 0
     fd, path = tempfile.mkstemp(suffix=ext, prefix="lecture-")
     try:
@@ -189,7 +215,8 @@ async def create_transcription(
         except OSError:
             pass
         raise
-    return _to_out(store.submit(path, enhance=enhance))
+
+    return _to_out(store.submit(path, enhance=enhance, processing_options=options_payload))
 
 
 @app.get("/api/transcriptions/{job_id}", response_model=JobOut, tags=["transcription"])

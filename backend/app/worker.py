@@ -30,8 +30,9 @@ from app.adapters import adapter_bundle
 from app.asr import Transcript, transcribe_file
 
 from app.config import Settings
-from app.contracts import ErrorCode, JobStage, LectureMetadata, LectureStatus
+from app.contracts import ErrorCode, JobDocument, JobStage, LectureMetadata, LectureStatus
 from app.media import DSPConfig, LocalMediaService
+from app.processing_profile import resolve_from_mapping
 from app.repositories import LectureRepository
 from app.storage import LocalStorageAdapter, StorageAdapter
 
@@ -118,7 +119,7 @@ class PipelineWorker:
             self._stage(owner_id, lecture_id, job_id, JobStage.PREPROCESSING)
             logger.info("Stage %s for job %s", JobStage.PREPROCESSING, job_id)
 
-            media = self._run_media(lecture, timings)
+            media = self._run_media(lecture, job, timings)
             # Store DSP‑enhanced audio for streaming via signed URL
             dsp_local_path = media["audio_asset"]["dsp_path"]
             dsp_storage_path = f"users/{owner_id}/{lecture_id}/dsp.wav"
@@ -233,9 +234,10 @@ class PipelineWorker:
                 return
 
     def _run_media(
-        self, lecture: LectureMetadata, timings: dict[str, Any]
+        self, lecture: LectureMetadata, job: JobDocument, timings: dict[str, Any]
     ) -> dict[str, Any]:
-        service = LocalMediaService(self.settings)
+        resolved_profile = resolve_from_mapping(self.settings, getattr(job, "processing_options", None))
+        service = LocalMediaService(self.settings, config=resolved_profile.config)
         temporary: Path | None = None
         if isinstance(self.storage, LocalStorageAdapter):
             media_kwargs: dict[str, Any] = {
@@ -262,7 +264,10 @@ class PipelineWorker:
                 temporary.unlink(missing_ok=True)
         timings["dsp"] = {
             "enabled": media["dsp_enabled"],
-            "configuration": asdict(DSPConfig.from_settings(self.settings)),
+            "configuration": asdict(resolved_profile.config),
+            "profile": resolved_profile.requested_profile,
+            "level_policy_id": resolved_profile.level_policy_id,
+            "operations": resolved_profile.operations_applied,
             "stage_runtimes": media["stage_runtimes"],
             "diagnostics": media["diagnostics"],
         }

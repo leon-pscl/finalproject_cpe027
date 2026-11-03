@@ -57,7 +57,7 @@ export type RecordingContextValue = {
   selectChat: (id: string) => void;
   deleteChat: (id: string) => void;
 
-  start: (file: File) => Promise<void>;
+  start: (file: File, processingOptions?: { high_pass_enabled?: boolean; high_pass_cutoff_hz?: number; background_noise_reduction_enabled?: boolean; }) => Promise<void>;
   ask: (text: string) => Promise<void>;
   setNotesReady: (ready: boolean) => void;
   play: () => void;

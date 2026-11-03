@@ -130,6 +130,8 @@ class UploadCompleteRequest(BaseModel):
     storage_path: str
     observed_size_bytes: Optional[int] = None
     observed_content_type: Optional[str] = None
+    # Validated at upload completion and frozen for that job.
+    processing_options: Optional[dict[str, Any]] = None
 
 class UploadCompleteResponse(BaseModel):
     lecture_id: str
@@ -168,8 +170,23 @@ class JobDocument(BaseModel):
     timings: dict[str, Any] | None = None
     safe_error_code: Optional[ErrorCode] = None
     dsp: Optional[dict] = None
+    processing_options: Optional[dict] = None
 
 JobDocument.model_rebuild()
+class ProcessingOptions(BaseModel):
+    schema_version: str = "1"
+    requested_profile: str | None = None
+    high_pass_enabled: bool = False
+    high_pass_cutoff_hz: int = Field(default=80, ge=1, le=500)
+    background_noise_reduction_enabled: bool = False
+    # Optional enhancement is intentionally explicit and not enabled by any
+    # unrelated "normalization" or "high-pass" setting.
+    experimental_enhancement_enabled: bool = False
+    # Retained only for backward compatibility. It is a separately resolved
+    # experimental flag, not a preparation bypass.
+    dsp_enabled: bool = False
+
+
 class NoteEntry(BaseModel):
     note_id: str
     lecture_id: str

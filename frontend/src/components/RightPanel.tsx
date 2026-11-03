@@ -88,7 +88,7 @@ function TranscriptionsPanel() {
           <p className="flex items-center gap-1.5">
             Status:
             <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-full ${ready ? 'bg-ink' : 'bg-neutral-500'}`} />
-            {ready ? 'Enhanced (DSP Active)' : 'Processing…'}
+            {ready ? 'Prepared audio available' : 'Processing…'}
           </p>
           <PlayerRow
             label="raw audio"

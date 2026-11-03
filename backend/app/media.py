@@ -913,9 +913,9 @@ def process_local_audio(
 class LocalMediaService:
     """Safe local implementation of media validation and extraction."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, config: DSPConfig | None = None):
         self.settings = settings
-        self.config = DSPConfig.from_settings(settings)
+        self.config = config or DSPConfig.from_settings(settings)
 
     def validate_and_extract(
         self,
@@ -966,6 +966,7 @@ class LocalMediaService:
             "audio_asset": audio_asset,
             "diagnostics": result.diagnostics,
             "stage_runtimes": result.stage_runtimes,
+            "configuration": result.configuration,
             "dsp_enabled": not self.config.bypass,
             "processing_mode": "local",
         }

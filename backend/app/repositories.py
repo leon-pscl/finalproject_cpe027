@@ -57,6 +57,7 @@ def _job_from_dict(job_id: str, lecture_id: str, data: dict[str, Any]) -> JobDoc
         worker_id=data.get("worker_id"),
         safe_error_code=data.get("safe_error_code"),
         timings=data.get("timings", {}),
+        processing_options=data.get("processing_options"),
     )
 
 
@@ -72,6 +73,7 @@ def _ensure_job_row(
     worker_id: str | None = None,
     safe_error_code: ErrorCode | None = None,
     timings: dict[str, Any] | None = None,
+    processing_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     timestamp = _now()
     return {
@@ -89,6 +91,7 @@ def _ensure_job_row(
         else None,
         "safe_error_message": None,
         "timings": timings or {},
+        "processing_options": processing_options,
         "created_at": timestamp,
         "updated_at": timestamp,
     }
@@ -153,6 +156,7 @@ class LectureRepository(ABC):
         worker_id: str | None = None,
         safe_error_code: ErrorCode | None = None,
         timings: dict[str, Any] | None = None,
+        processing_options: dict[str, Any] | None = None,
     ) -> JobDocument:
         raise NotImplementedError
 
@@ -347,6 +351,7 @@ class InMemoryLectureRepository(LectureRepository):
         worker_id: str | None = None,
         safe_error_code: ErrorCode | None = None,
         timings: dict[str, Any] | None = None,
+        processing_options: dict[str, Any] | None = None,
     ) -> JobDocument:
         with self._lock:
             existing = self._jobs.get(job_id)
@@ -369,6 +374,7 @@ class InMemoryLectureRepository(LectureRepository):
                 worker_id,
                 safe_error_code,
                 timings,
+                processing_options,
             )
             self._jobs[job_id] = data
         result = self.get_job(owner_id, lecture_id, job_id)
