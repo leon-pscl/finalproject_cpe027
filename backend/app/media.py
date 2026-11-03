@@ -49,6 +49,9 @@ class DSPConfig:
     vad_frame_seconds: float = 0.02
     target_sample_rate: int = 16_000
     target_channels: int = 1
+    evaluation_arm: str = ""
+    oa_weight: float = 0.3
+    ffmpeg_filter: str = ""
 
     @classmethod
     def from_settings(cls, settings: Settings) -> DSPConfig:

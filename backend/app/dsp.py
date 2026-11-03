@@ -266,6 +266,23 @@ def frame_level_db_percentile_spread(x: np.ndarray) -> float:
     return float(np.percentile(db, 90) - np.percentile(db, 10))
 
 
+def blend_observed_audio(
+    enhanced: np.ndarray, prepared_highpassed: np.ndarray, observed_weight: float
+) -> np.ndarray:
+    """Explicit OA blend used for the experimental hp_wiener_oa arm."""
+    if not 0.0 <= float(observed_weight) <= 1.0:
+        raise ValueError("observed_weight must be in [0, 1]")
+    enhanced_arr = np.asarray(enhanced, dtype=np.float32).ravel()
+    observed_arr = np.asarray(prepared_highpassed, dtype=np.float32).ravel()
+    length = min(enhanced_arr.size, observed_arr.size)
+    if length == 0:
+        raise ValueError("OA blend inputs must not be empty")
+    enhanced_arr = enhanced_arr[:length]
+    observed_arr = observed_arr[:length]
+    mixed = (1.0 - float(observed_weight)) * enhanced_arr + float(observed_weight) * observed_arr
+    return mixed.astype(np.float32)
+
+
 # Backwards-compatible name for the diagnostic frame-level spread.
 snr_proxy = frame_level_db_percentile_spread
 

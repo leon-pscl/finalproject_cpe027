@@ -128,3 +128,10 @@ def test_wer_cer_and_term_accuracy():
         ["Hann window", "Fourier transform", "wavelet"],
     )
     assert n == 2 and acc == 0.5
+
+
+def test_oa_blend_endpoints():
+    enhanced = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+    observed = np.array([0.4, 0.5, 0.6], dtype=np.float32)
+    assert np.array_equal(dsp.blend_observed_audio(enhanced, observed, 0.0), enhanced)
+    assert np.array_equal(dsp.blend_observed_audio(enhanced, observed, 1.0), observed)

@@ -41,7 +41,24 @@ from .eval_data import (
 from .media import DSPConfig, process_local_audio
 
 
-CONDITIONS = ("arm_a", "hp", "hp+sg")
+CONDITIONS = (
+    "arm_a",
+    "hp",
+    "hp+sg",
+    "hp_wiener",
+    "hp_wiener_oa",
+    "hp_ffmpeg",
+)
+CONDITION_ALIASES = {
+    "a": "arm_a",
+    "arm-a": "arm_a",
+    "b": "hp",
+    "c": "hp_wiener",
+    "hp+wiener": "hp_wiener",
+    "d": "hp_wiener_oa",
+    "e": "hp_ffmpeg",
+    "hp+ffmpeg": "hp_ffmpeg",
+}
 
 CHECKPOINT_SCHEMA_VERSION = 2
 METRIC_VERSION = "1.0.0"
@@ -281,8 +298,9 @@ def _safe_float(value: Any) -> float | None:
     return number
 
 
-def _condition_config(condition: str, settings: Any) -> DSPConfig:
-    if condition == "arm_a":
+def _condition_config(condition: str, settings: Any, oa_weight: float = 0.3) -> DSPConfig:
+    condition = CONDITION_ALIASES.get(str(condition).strip().lower(), str(condition).strip())
+    if condition in {"arm_a", "A"}:
         return DSPConfig(
             bypass=True,
             high_pass_enabled=False,
@@ -291,7 +309,7 @@ def _condition_config(condition: str, settings: Any) -> DSPConfig:
             target_sample_rate=16000,
             target_channels=1,
         )
-    if condition == "hp":
+    if condition in {"hp", "B"}:
         return DSPConfig(
             bypass=False,
             high_pass_enabled=True,
@@ -301,7 +319,30 @@ def _condition_config(condition: str, settings: Any) -> DSPConfig:
             target_sample_rate=16000,
             target_channels=1,
         )
-    if condition == "hp+sg":
+    if condition in {"hp+sg", "hp+wiener", "hp_wiener", "C"}:
+        return DSPConfig(
+            bypass=False,
+            high_pass_enabled=True,
+            high_pass_cutoff_hz=float(settings.dsp_high_pass_cutoff_hz),
+            spectral_gating_enabled=False,
+            normalize=True,
+            target_sample_rate=16000,
+            target_channels=1,
+        )
+    if condition in {"hp_wiener_oa", "D"}:
+        return DSPConfig(
+            bypass=False,
+            high_pass_enabled=True,
+            high_pass_cutoff_hz=float(settings.dsp_high_pass_cutoff_hz),
+            spectral_gating_enabled=False,
+            normalize=True,
+            target_sample_rate=16000,
+            target_channels=1,
+            # The actual OA blend still has to be implemented per arm.
+            evaluation_arm="hp_wiener_oa",
+            oa_weight=min(max(float(oa_weight), 0.0), 1.0),
+        )
+    if condition in {"hp_ffmpeg", "E"}:
         return DSPConfig(
             bypass=False,
             high_pass_enabled=True,
@@ -311,6 +352,7 @@ def _condition_config(condition: str, settings: Any) -> DSPConfig:
             normalize=True,
             target_sample_rate=16000,
             target_channels=1,
+            evaluation_arm="hp_ffmpeg",
         )
     raise ValueError(f"unknown evaluation condition: {condition}")
 
@@ -373,6 +415,9 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     demand_envs = [item.strip() for item in str(args.demand_envs).split(",") if item.strip()]
     if noise_type == "demand" and not demand_envs:
         demand_envs = list(RELEVANT_DEMAND_ENVS)
+    oa_weight = float(getattr(args, "oa_weight", 0.3))
+    if not 0.0 <= oa_weight <= 1.0:
+        raise ValueError("oa_weight must be in [0, 1]")
     if noise_type == "demand":
         # When multiple environments are requested, run them as separate records.
         demand_root = Path(args.demand_root or (Path(args.data_root or EVAL_DATA_ROOT) / "DEMAND"))
@@ -385,6 +430,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
 
     snr_values = args.snrs
     conditions = [item.strip() for item in str(args.conditions).split(",") if item.strip()]
+    conditions = [CONDITION_ALIASES.get(item.lower(), item) for item in conditions]
     for condition in conditions:
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
@@ -482,7 +528,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                         f"  {talk.talk_id} | {spec_noise_type} | SNR={snr_label} | {condition}",
                         flush=True,
                     )
-                    config = _condition_config(condition, settings)
+                    config = _condition_config(condition, settings, float(getattr(args, "oa_weight", 0.3)))
                     media_root = _processor_root(out_dir, 1, talk.talk_id, condition)
                     media_root.mkdir(parents=True, exist_ok=True)
                     started = time.perf_counter()
@@ -654,7 +700,11 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
     if not resume and checkpoint_path.exists():
         checkpoint_path.unlink(missing_ok=True)
 
+    oa_weight = float(getattr(args, "oa_weight", 0.3))
+    if not 0.0 <= oa_weight <= 1.0:
+        raise ValueError("oa_weight must be in [0, 1]")
     conditions = [item.strip() for item in str(args.conditions).split(",") if item.strip()]
+    conditions = [CONDITION_ALIASES.get(item.lower(), item) for item in conditions]
     for condition in conditions:
         if condition not in CONDITIONS:
             raise ValueError(f"unknown condition: {condition}")
@@ -696,7 +746,7 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                 print(f"  {clip.clip_id} | {condition} | already complete; skipping", flush=True)
                 continue
             print(f"  {clip.clip_id} | {condition}", flush=True)
-            config = _condition_config(condition, settings)
+            config = _condition_config(condition, settings, float(getattr(args, "oa_weight", 0.3)))
             media_root = out_dir / "tier2_media" / clip.clip_id / condition
             media_root.mkdir(parents=True, exist_ok=True)
             started = time.perf_counter()
@@ -854,6 +904,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", default=None, help="optional checkpoint path; defaults to out/tier*_checkpoint.json")
     parser.add_argument("--keep-media", action="store_true", default=False, help="retain generated DSP media and mixed noise WAVs")
     parser.add_argument("--keep-asr-input", action="store_true", default=False, help="retain the exact WAV passed to ASR for every completed condition")
+    parser.add_argument("--oa-weight", type=float, default=0.3, help="observed-audio blend weight for hp_wiener_oa, in [0, 1]")
     return parser
 
 
