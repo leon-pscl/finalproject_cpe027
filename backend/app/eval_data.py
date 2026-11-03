@@ -516,10 +516,11 @@ def aggregate_records(
     records: list[dict[str, Any]],
     group_keys: list[str],
     metric_keys: list[str],
-    bootstrap_ci: bool = False,
+    bootstrap_ci_enabled: bool = False,
     n_boot: int = 2000,
     seed: int = 42,
 ) -> list[dict[str, Any]]:
+
     """Group records and return mean/sample-stdev for each metric."""
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for record in records:
@@ -573,7 +574,7 @@ def aggregate_records(
                 row[f"{metric}_corpus"] = None
                 row[f"{metric}_edit_count"] = None
                 row[f"{metric}_reference_count"] = None
-            if bootstrap_ci:
+            if bootstrap_ci_enabled:
                 ci = bootstrap_ci(values, n_boot=n_boot, seed=seed)
                 row[f"{metric}_ci_mean"] = ci["mean"]
                 row[f"{metric}_ci_lower"] = ci["lower"]

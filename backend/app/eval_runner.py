@@ -666,7 +666,7 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         records,
         group_keys,
         TIER1_METRICS,
-        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        bootstrap_ci_enabled=getattr(args, "bootstrap_ci", False),
         n_boot=int(getattr(args, "bootstrap_samples", 2000)),
     )
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -869,14 +869,14 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         records,
         ["condition", "duration_bucket"],
         TIER2_METRICS,
-        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        bootstrap_ci_enabled=getattr(args, "bootstrap_ci", False),
         n_boot=int(getattr(args, "bootstrap_samples", 2000)),
     )
     overall_summary = aggregate_records(
         records,
         ["condition"],
         TIER2_METRICS,
-        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        bootstrap_ci_enabled=getattr(args, "bootstrap_ci", False),
         n_boot=int(getattr(args, "bootstrap_samples", 2000)),
     )
     for row in overall_summary:
