@@ -24,6 +24,7 @@ services:
       WHISPER_THREADS: "4"
       ENHANCE_DEFAULT: "true"
       DSP_ENABLED: "true"
+      DSP_EXPERIMENTAL_CONTROLS_ENABLED: "true"
       MAX_UPLOAD_MB: "512"
       LOG_LEVEL: "DEBUG"
       MODEL_CACHE_DIR: /models
