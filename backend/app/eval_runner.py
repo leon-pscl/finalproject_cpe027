@@ -864,6 +864,12 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
             nshr = nshr_for_segments(transcript.segments, clip.speech_intervals)
             duration = _m3av_duration(clip, audio_duration)
             rtf = elapsed / max(duration, 1e-9)
+            print(
+                f"    WER {wer_value:.1%} | CER {cer_value:.1%} | "
+                f"TermPresence {0.0 if term_presence_recall is None else term_presence_recall:.1%} | "
+                f"NSHR {nshr:.3f} | RTF {rtf:.2f} | {elapsed:.1f}s",
+                flush=True,
+            )
             records.append(
                 {
                     "tier": 2,
