@@ -28,3 +28,9 @@ frontend/dist/
 .docker/
 .docker-cache/
 docker-cache/
+# Generated evaluation runs and smoke tests
+/eval_*/
+backend/eval_*/
+eval_smoke*/
+eval_bench*/
+eval_results/
