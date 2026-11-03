@@ -59,15 +59,19 @@ def _save_waveform_png(wav_path: Path, png_path: Path) -> None:
     data = data.astype(float)
     if data.size == 0:
         return
-    # Short window so individual cycles are visible (0.05–0.5 s).
-    window_s = 0.3
-    start = int(0.05 * sr)
-    end = start + int(window_s * sr)
-    if end > data.size:
+    # Short window centred on the loudest point so individual cycles are visible.
+    window_s = 0.5
+    window_samples = int(window_s * sr)
+    if data.size > window_samples:
+        centre = int(np.argmax(np.abs(data)))
+        half = window_samples // 2
+        start = max(0, centre - half)
+        end = min(data.size, start + window_samples)
+        if end - start < window_samples:
+            start = max(0, end - window_samples)
+        segment = data[start:end]
+    else:
         start = 0
-        end = min(data.size, int(0.5 * sr))
-    segment = data[start:end]
-    if segment.size == 0:
         segment = data
     t = np.arange(len(segment)) / sr + (start / sr)
     peak = max(float(np.max(np.abs(segment))), 1e-9)
