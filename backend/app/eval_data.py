@@ -516,6 +516,9 @@ def aggregate_records(
     records: list[dict[str, Any]],
     group_keys: list[str],
     metric_keys: list[str],
+    bootstrap_ci: bool = False,
+    n_boot: int = 2000,
+    seed: int = 42,
 ) -> list[dict[str, Any]]:
     """Group records and return mean/sample-stdev for each metric."""
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
@@ -570,10 +573,43 @@ def aggregate_records(
                 row[f"{metric}_corpus"] = None
                 row[f"{metric}_edit_count"] = None
                 row[f"{metric}_reference_count"] = None
+            if bootstrap_ci:
+                ci = bootstrap_ci(values, n_boot=n_boot, seed=seed)
+                row[f"{metric}_ci_mean"] = ci["mean"]
+                row[f"{metric}_ci_lower"] = ci["lower"]
+                row[f"{metric}_ci_upper"] = ci["upper"]
+                row[f"{metric}_ci"] = ci
         result.append(row)
     return result
 
 
+def bootstrap_ci(
+    values: list[float],
+    n_boot: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 42,
+) -> dict[str, float | None]:
+    """Percentile bootstrap confidence interval for the mean of `values`.
+
+    Returns a dict with ``mean``, ``lower``, and ``upper`` keys.  For fewer
+    than two observations the interval is ``None``.
+    """
+    arr = np.asarray(values, dtype=np.float64).ravel()
+    if arr.size == 0:
+        return {"mean": None, "lower": None, "upper": None}
+    if arr.size < 2:
+        return {"mean": float(arr[0]), "lower": None, "upper": None}
+    rng = np.random.default_rng(seed)
+    boot_means = np.empty(n_boot, dtype=np.float64)
+    for i in range(n_boot):
+        sample = rng.choice(arr, size=arr.size, replace=True)
+        boot_means[i] = float(np.mean(sample))
+    alpha = (1.0 - confidence) / 2.0
+    return {
+        "mean": float(np.mean(arr)),
+        "lower": float(np.percentile(boot_means, 100.0 * alpha)),
+        "upper": float(np.percentile(boot_means, 100.0 * (1.0 - alpha))),
+    }
 def write_json(path: Path | str, payload: Any) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

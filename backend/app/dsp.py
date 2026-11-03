@@ -287,6 +287,21 @@ def blend_observed_audio(
 snr_proxy = frame_level_db_percentile_spread
 
 
+def highpass(x: np.ndarray, cutoff_hz: float = 80.0, sr: int = SR) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float32)
+    if x.size == 0:
+        return x
+    filtered = x.copy()
+    if cutoff_hz and cutoff_hz > 0:
+        try:
+            filtered = (x - float(x.mean())).astype(np.float32)
+            sos = signal.butter(4, float(cutoff_hz), btype="highpass", fs=sr, output="sos")
+            filtered = signal.sosfiltfilt(sos, filtered).astype(np.float32)
+        except ValueError:
+            filtered = x
+    return filtered
+
+
 def normalize_loudness(x: np.ndarray, target_db: float = TARGET_RMS_DB) -> np.ndarray:
     db = _frame_db(x)
     active = db > np.median(db)

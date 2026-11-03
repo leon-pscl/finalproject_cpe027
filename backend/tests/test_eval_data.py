@@ -115,3 +115,10 @@ def test_term_presence_recall_zero_eligible_is_none():
     assert recovered == 0
     assert eligible == 0
     assert evaluate.term_accuracy("hello world", "hello world", ["wavelet"])[1] == 0
+
+
+def test_bootstrap_ci_bounds():
+    ci = eval_data.bootstrap_ci([0.1, 0.2, 0.3], n_boot=100, seed=42)
+    assert ci["lower"] is not None
+    assert ci["upper"] is not None
+    assert ci["lower"] <= ci["mean"] <= ci["upper"]

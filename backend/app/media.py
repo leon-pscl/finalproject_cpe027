@@ -20,6 +20,8 @@ from tempfile import mkdtemp
 from typing import Any
 
 from app.config import Settings
+import numpy as np
+from . import dsp
 
 
 class MediaProcessingError(RuntimeError):
@@ -459,6 +461,57 @@ def _safe_temp_dir(output_root: Path | None = None) -> Path:
     return root
 
 
+def _ffmpeg_loudnorm(input_path: Path, output_path: Path, timeout_seconds: int) -> None:
+    """Apply ffmpeg loudnorm to `input_path` and write to `output_path`."""
+    command = [
+        ffmpeg_executable("ffmpeg"),
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(input_path),
+        "-af",
+        "loudnorm=I=-20:TP=-2:LRA=7",
+        "-ac",
+        str(DSPConfig().target_channels),
+        "-ar",
+        str(DSPConfig().target_sample_rate),
+        "-c:a",
+        "pcm_f32le",
+        "-f",
+        "wav",
+        str(output_path),
+    ]
+    run_subprocess(command, max(30, timeout_seconds))
+
+
+def _ffmpeg_filter(input_path: Path, output_path: Path, filter_expr: str, timeout_seconds: int) -> None:
+    """Run an arbitrary FFmpeg audio filter (e.g., afftdn) on `input_path`."""
+    command = [
+        ffmpeg_executable("ffmpeg"),
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(input_path),
+        "-af",
+        filter_expr,
+        "-ac",
+        str(DSPConfig().target_channels),
+        "-ar",
+        str(DSPConfig().target_sample_rate),
+        "-c:a",
+        "pcm_f32le",
+        "-f",
+        "wav",
+        str(output_path),
+    ]
+    run_subprocess(command, max(30, timeout_seconds))
+
+
+
 def _safe_storage_path(storage_root: Path, storage_path: str) -> Path:
     root = storage_root.expanduser().resolve()
     relative = Path(storage_path)
@@ -614,6 +667,101 @@ def process_local_audio(
     nonce = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
     arm_a_path = root / f"arm_a_{nonce}.wav"
     dsp_path = root / f"dsp_{nonce}.wav"
+    # -----------------------------------------------------------------
+    # New ablation‑arm processing (Slice 5 & 6). If an evaluation arm is
+    # specified, we bypass the legacy FFmpeg‑stage chain and run a single
+    # decode → optional DSP → final loudnorm pipeline that matches the
+    # contract described in the specification.
+    if config.evaluation_arm:
+        # Gather probe information first (required for diagnostics).
+        probe_started = time.monotonic()
+        probe = probe_media(source)
+        # Decode once (mono 16 kHz) using the DSP helper.
+        original = dsp.load_audio(str(source))
+        # ----- Arm A (baseline) -----
+        tmp_arm_raw = root / f"tmp_arm_raw_{nonce}.wav"
+        dsp.write_wav(str(tmp_arm_raw), original.astype(np.float32))
+        _ffmpeg_loudnorm(tmp_arm_raw, arm_a_path, timeout_seconds)
+        # Determine the selected arm processing.
+        arm = config.evaluation_arm
+        ffmpeg_filter_used = ""
+        if arm in {"arm_a", ""}:
+            selected_wave = original
+        elif arm in {"hp", "hp+sg"}:
+            selected_wave = dsp.highpass(original, config.high_pass_cutoff_hz, config.target_sample_rate)
+        elif arm == "hp_wiener":
+            hp = dsp.highpass(original, config.high_pass_cutoff_hz, config.target_sample_rate)
+            selected_wave, _ = dsp.enhance(
+                hp,
+                high_pass_enabled=False,
+                dc_removal_enabled=False,
+                dereverberation_enabled=False,
+                spectral_enhancement_enabled=True,
+                output_level_adjustment_enabled=False,
+                reverb_weight=0.0,
+            )
+        elif arm == "hp_wiener_oa":
+            hp = dsp.highpass(original, config.high_pass_cutoff_hz, config.target_sample_rate)
+            enhanced, _ = dsp.enhance(
+                hp,
+                high_pass_enabled=False,
+                dc_removal_enabled=False,
+                dereverberation_enabled=False,
+                spectral_enhancement_enabled=True,
+                output_level_adjustment_enabled=False,
+                reverb_weight=0.0,
+            )
+            selected_wave = dsp.blend_observed_audio(enhanced, hp, config.oa_weight)
+        elif arm in {"hp_ffmpeg", "hp+sg"}:
+            hp = dsp.highpass(original, config.high_pass_cutoff_hz, config.target_sample_rate)
+            temp_in = root / f"tmp_hp_raw_{nonce}.wav"
+            temp_out = root / f"tmp_hp_denoised_{nonce}.wav"
+            dsp.write_wav(str(temp_in), hp.astype(np.float32))
+            ffmpeg_filter_used = "afftdn=nf=-25"
+            _ffmpeg_filter(temp_in, temp_out, ffmpeg_filter_used, timeout_seconds)
+            selected_wave = dsp.load_audio(str(temp_out))
+        else:
+            raise ValueError(f"unknown evaluation arm: {arm}")
+        # ----- Final loudnorm for the selected arm -----
+        tmp_sel_raw = root / f"tmp_sel_raw_{nonce}.wav"
+        dsp.write_wav(str(tmp_sel_raw), selected_wave.astype(np.float32))
+        _ffmpeg_loudnorm(tmp_sel_raw, dsp_path, timeout_seconds)
+        # Gather diagnostics.
+        arm_a_stats = _read_wav(arm_a_path)
+        dsp_stats = _read_wav(dsp_path)
+        configuration = asdict(config)
+        if ffmpeg_filter_used:
+            configuration["ffmpeg_filter"] = ffmpeg_filter_used
+        return ProcessedAudio(
+            input_path=str(source),
+            arm_a_path=str(arm_a_path),
+            dsp_path=str(dsp_path),
+            bypassed=False,
+            diagnostics={
+                "probe": asdict(probe),
+                "arm_a": asdict(arm_a_stats),
+                "dsp": asdict(dsp_stats),
+                "voice_activity_map": [],
+                "peak_delta": round(dsp_stats.peak - arm_a_stats.peak, 4),
+                "rms_delta": round(dsp_stats.rms - arm_a_stats.rms, 4),
+                "clipping_fraction_delta": round(
+                    dsp_stats.clipping_fraction - arm_a_stats.clipping_fraction, 4
+                ),
+                "silence_fraction_delta": round(
+                    dsp_stats.silence_fraction - arm_a_stats.silence_fraction, 4
+                ),
+                "ffmpeg_filter": ffmpeg_filter_used,
+            },
+            stage_runtimes={
+                "decode": 0.0,
+                "high_pass": 0.0,
+                "spectral_gating": 0.0,
+                "normalization": 0.0,
+                "vad": 0.0,
+                "dsp_total": 0.0,
+            },
+            configuration=configuration,
+        )
 
     try:
         probe_started = time.monotonic()

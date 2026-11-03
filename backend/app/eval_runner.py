@@ -24,6 +24,7 @@ from .eval_data import (
     AclTalk,
     M3avClip,
     aggregate_records,
+    bootstrap_ci,
     demand_noise_file,
     duration_bucket,
     extract_bracketed_terms,
@@ -661,7 +662,13 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                         pass
 
     group_keys = ["condition", "noise_type", "snr_db"]
-    summary = aggregate_records(records, group_keys, TIER1_METRICS)
+    summary = aggregate_records(
+        records,
+        group_keys,
+        TIER1_METRICS,
+        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        n_boot=int(getattr(args, "bootstrap_samples", 2000)),
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "tier1_acl_results.json", records)
     write_json(out_dir / "tier1_acl_summary.json", summary)
@@ -858,8 +865,20 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                 )
                 shutil.rmtree(media_root, ignore_errors=True)
 
-    bucket_summary = aggregate_records(records, ["condition", "duration_bucket"], TIER2_METRICS)
-    overall_summary = aggregate_records(records, ["condition"], TIER2_METRICS)
+    bucket_summary = aggregate_records(
+        records,
+        ["condition", "duration_bucket"],
+        TIER2_METRICS,
+        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        n_boot=int(getattr(args, "bootstrap_samples", 2000)),
+    )
+    overall_summary = aggregate_records(
+        records,
+        ["condition"],
+        TIER2_METRICS,
+        bootstrap_ci=getattr(args, "bootstrap_ci", False),
+        n_boot=int(getattr(args, "bootstrap_samples", 2000)),
+    )
     for row in overall_summary:
         row["duration_bucket"] = "all"
     summary = bucket_summary + overall_summary
@@ -904,6 +923,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", default=None, help="optional checkpoint path; defaults to out/tier*_checkpoint.json")
     parser.add_argument("--keep-media", action="store_true", default=False, help="retain generated DSP media and mixed noise WAVs")
     parser.add_argument("--keep-asr-input", action="store_true", default=False, help="retain the exact WAV passed to ASR for every completed condition")
+    parser.add_argument("--bootstrap-ci", action="store_true", default=False, help="add percentile bootstrap confidence intervals to summary rows")
+    parser.add_argument("--bootstrap-samples", type=int, default=2000, help="number of bootstrap resamples when --bootstrap-ci is set")
     parser.add_argument("--oa-weight", type=float, default=0.3, help="observed-audio blend weight for hp_wiener_oa, in [0, 1]")
     return parser
 

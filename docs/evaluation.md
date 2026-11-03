@@ -95,6 +95,9 @@ Conditions:
 1. `arm_a`: media normalization only (`DSPConfig.bypass=True`)
 2. `hp`: high-pass + normalization
 3. `hp+sg`: high-pass + spectral gating + normalization
+4. `hp_wiener`: high-pass + Wiener denoising + normalization
+5. `hp_wiener_oa`: blend of `hp_wiener` and `hp` (observed-audio blend) + normalization
+6. `hp_ffmpeg`: high-pass + FFmpeg `afftdn` denoising + normalization
 
 Media processing happens through `app.media`, then ASR runs with `enhance=False`.
 This is the production DSP path rather than the `enhance=True` path in
@@ -109,11 +112,13 @@ Noise robustness:
 Metrics:
 - `wer`
 - `cer`
-- `kter`: ACL6060 bracketed-term accuracy (renamed from term accuracy; equivalent
-  to the `app.evaluate.term_accuracy` result)
+- `term_presence_recall` (alias `kter`): ACL6060 bracketed-term accuracy
 - `signal_snr_improvement_db`
 - `rtf`
 - `seconds`
+
+Optional bootstrap CI: add `--bootstrap-ci` to the runner to include
+`<metric>_ci_lower` and `<metric>_ci_upper` in summary rows.
 
 Outputs:
 - `tier1_acl_results.json`
@@ -135,7 +140,7 @@ signal-level SNR improvement metric because there is no clean reference.
 Metrics:
 - `wer`
 - `cer`
-- `kter`: heuristic key-term accuracy derived from paper sentences
+- `term_presence_recall` (alias `kter`): heuristic key-term accuracy
 - `rtf`
 - `seconds`
 - `nshr`: non-speech hallucination rate
