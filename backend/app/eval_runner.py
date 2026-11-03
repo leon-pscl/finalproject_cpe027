@@ -44,11 +44,13 @@ def _save_waveform_png(wav_path: Path, png_path: Path) -> None:
     try:
         import numpy as np
         from scipy.io import wavfile
-        from PIL import Image, ImageDraw
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
     except Exception:
         return
     try:
-        _sr, data = wavfile.read(str(wav_path))
+        sr, data = wavfile.read(str(wav_path))
     except Exception:
         return
     data = np.asarray(data)
@@ -57,23 +59,32 @@ def _save_waveform_png(wav_path: Path, png_path: Path) -> None:
     data = data.astype(float)
     if data.size == 0:
         return
-    max_samples = 2000
-    if data.size > max_samples:
-        step = data.size // max_samples
-        data = data[::step]
-    peak = max(abs(float(data.max())), abs(float(data.min())), 1e-9)
-    data = data / peak
-    width, height = 800, 200
-    img = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(img)
-    mid = height // 2
-    scale = (height // 2) - 5
-    for i, val in enumerate(data):
-        x = int(i * width / len(data))
-        y = int(mid - float(val) * scale)
-        draw.point((x, y), fill="black")
+    # Short window so individual cycles are visible (0.05–0.5 s).
+    window_s = 0.3
+    start = int(0.05 * sr)
+    end = start + int(window_s * sr)
+    if end > data.size:
+        start = 0
+        end = min(data.size, int(0.5 * sr))
+    segment = data[start:end]
+    if segment.size == 0:
+        segment = data
+    t = np.arange(len(segment)) / sr + (start / sr)
+    peak = max(float(np.max(np.abs(segment))), 1e-9)
+    rms = float(np.sqrt(np.mean(segment * segment)))
+    print(f"  waveform peak={peak:.6f} rms={rms:.6f}", flush=True)
+    fig, ax = plt.subplots(figsize=(10, 3))
+    ax.plot(t, segment, linewidth=0.8, color="black")
+    ax.axhline(0, color="black", linewidth=0.5, alpha=0.5)
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Amplitude")
+    ax.set_title(f"Waveform – peak={peak:.4f}, RMS={rms:.4f}")
+    ax.set_ylim(-peak, peak)
+    ax.set_facecolor("white")
+    fig.patch.set_facecolor("white")
     png_path.parent.mkdir(parents=True, exist_ok=True)
-    img.save(png_path)
+    fig.savefig(png_path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
 
 
 CONDITIONS = (
