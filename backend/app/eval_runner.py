@@ -40,6 +40,40 @@ from .eval_data import (
     write_json,
 )
 from .media import DSPConfig, process_local_audio
+def _save_waveform_png(wav_path: Path, png_path: Path) -> None:
+    try:
+        import numpy as np
+        from scipy.io import wavfile
+        from PIL import Image, ImageDraw
+    except Exception:
+        return
+    try:
+        _sr, data = wavfile.read(str(wav_path))
+    except Exception:
+        return
+    data = np.asarray(data)
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    data = data.astype(float)
+    if data.size == 0:
+        return
+    max_samples = 2000
+    if data.size > max_samples:
+        step = data.size // max_samples
+        data = data[::step]
+    peak = max(abs(float(data.max())), abs(float(data.min())), 1e-9)
+    data = data / peak
+    width, height = 800, 200
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+    mid = height // 2
+    scale = (height // 2) - 5
+    for i, val in enumerate(data):
+        x = int(i * width / len(data))
+        y = int(mid - float(val) * scale)
+        draw.point((x, y), fill="black")
+    png_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(png_path)
 
 
 CONDITIONS = (
@@ -647,6 +681,9 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                             "dsp": processed.diagnostics,
                         }
                     )
+                    if getattr(args, "save_waveforms", False):
+                        wave_dir = out_dir / "waveforms" / "tier1" / talk.talk_id / condition
+                        _save_waveform_png(Path(processed.dsp_path), wave_dir / "waveform.png")
                     completed.add(condition_key)
                     if not keep_media:
                         _atomic_write_json(
@@ -857,6 +894,9 @@ def run_tier2(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     "dsp": processed.diagnostics,
                 }
             )
+            if getattr(args, "save_waveforms", False):
+                wave_dir = out_dir / "waveforms" / "tier2" / clip.clip_id / condition
+                _save_waveform_png(Path(processed.dsp_path), wave_dir / "waveform.png")
             completed.add(condition_key)
             if not keep_media:
                 _atomic_write_json(
@@ -923,6 +963,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", default=None, help="optional checkpoint path; defaults to out/tier*_checkpoint.json")
     parser.add_argument("--keep-media", action="store_true", default=False, help="retain generated DSP media and mixed noise WAVs")
     parser.add_argument("--keep-asr-input", action="store_true", default=False, help="retain the exact WAV passed to ASR for every completed condition")
+    parser.add_argument("--save-waveforms", action="store_true", default=False, help="write a PNG waveform image for the processed output of each completed condition")
     parser.add_argument("--bootstrap-ci", action="store_true", default=False, help="add percentile bootstrap confidence intervals to summary rows")
     parser.add_argument("--bootstrap-samples", type=int, default=2000, help="number of bootstrap resamples when --bootstrap-ci is set")
     parser.add_argument("--oa-weight", type=float, default=0.3, help="observed-audio blend weight for hp_wiener_oa, in [0, 1]")
