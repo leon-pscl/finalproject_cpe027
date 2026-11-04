@@ -1,0 +1,9 @@
+{
+  "deferred_metrics": [
+    "DNSMOS"
+  ],
+  "notes": [
+    "Tier 1 and Tier 2 are reported separately and are never pooled.",
+    "Sample sizes are small; standard deviations are reported and significance is not claimed."
+  ]
+}

@@ -30,7 +30,11 @@ frontend/dist/
 docker-cache/
 # Generated evaluation runs and smoke tests
 /eval_*/
+!/eval_results/
 backend/eval_*/
 eval_smoke*/
 eval_bench*/
-eval_results/
+eval_results/artifacts
+eval_results/tier1_media
+eval_results/tier2_media
+eval_results/tier1_noise
