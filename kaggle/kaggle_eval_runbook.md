@@ -2,7 +2,7 @@
 
 Run the ASR/DSP eval on Kaggle using already-preprocessed local data. No preprocessing is redone.
 
-## Setup (Kaggle notebook: `kaggle_eval.ipynb` at repo root)
+## Setup (Kaggle notebook: `kaggle/kaggle_eval.ipynb`)
 
 1. Mount datasets: `acl6060`, `demand`, and the M3AV split dataset(s) (auto-discovered by the notebook under `/kaggle/input/*/M3AV/extracted`).
 2. First cells: `nvidia-smi`, `df -h`, `ls /kaggle/input/*`, eval deps install, versions, mount verification.
