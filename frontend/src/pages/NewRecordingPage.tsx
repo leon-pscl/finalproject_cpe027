@@ -551,11 +551,7 @@ export default function NewRecordingPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileError, setSelectedFileError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [processingOptions, setProcessingOptions] = useState<SubmitTranscriptionOptions>({
-    high_pass_enabled: false,
-    high_pass_cutoff_hz: 80,
-    background_noise_reduction_enabled: false,
-  });
+  const [processingOptions, setProcessingOptions] = useState<SubmitTranscriptionOptions>({ dsp_arm: 'arm_a' });
 
   useEffect(() => {
     if (!selectedFile) {
@@ -584,49 +580,28 @@ export default function NewRecordingPage() {
           <RecordingPreview src={previewUrl} />
           <p className="mt-2 break-all font-mono text-xs uppercase tracking-wide text-neutral-500">{selectedFile.name}</p>
           <fieldset className="mt-4 space-y-2 rounded border border-neutral-300 bg-paper p-3 text-left">
-            <legend className="font-mono text-xs uppercase tracking-wide text-neutral-500">Audio preparation</legend>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={processingOptions.high_pass_enabled ?? false}
-                onChange={(event) =>
-                  setProcessingOptions((current) => ({ ...current, high_pass_enabled: event.target.checked }))
-                }
-                aria-describedby="high-pass-help"
-              />
-              <span>
-                <span className="font-medium">High-pass filter</span>
-                <span id="high-pass-help" className="block text-xs text-neutral-500">Reduces low-frequency rumble; may help fan or ventilation noise.</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={processingOptions.background_noise_reduction_enabled ?? false}
-                onChange={(event) =>
-                  setProcessingOptions((current) => ({ ...current, background_noise_reduction_enabled: event.target.checked }))
-                }
-                aria-describedby="denoise-help"
-              />
-              <span>
-                <span className="font-medium">Background-noise reduction</span>
-                <span id="denoise-help" className="block text-xs text-neutral-500">Experimental; may alter speech.</span>
-              </span>
-            </label>
-            <button
-              type="button"
-              onClick={() =>
-                setProcessingOptions({
-                  high_pass_enabled: false,
-                  high_pass_cutoff_hz: 80,
-                  background_noise_reduction_enabled: false,
-                })
-              }
-              className="rounded border border-neutral-300 px-2 py-1 font-mono text-xs"
-            >
-              Reset to baseline
-            </button>
-          </fieldset>
+             <legend className="font-mono text-xs uppercase tracking-wide text-neutral-500">Audio preparation (DSP arm)</legend>
+             {[
+               { value: 'arm_a', label: 'baseline (normalization only)' },
+               { value: 'hp', label: 'high-pass filter' },
+               { value: 'hp+sg', label: 'high-pass + spectral gating' },
+               { value: 'hp_wiener', label: 'high-pass + Wiener denoising' },
+               { value: 'hp_wiener_oa', label: 'high-pass + Wiener + observed-audio blend' },
+               { value: 'hp_ffmpeg', label: 'high-pass + FFmpeg afftdn denoising' },
+             ].map((arm) => (
+               <label key={arm.value} className="flex items-center gap-2 text-sm">
+                 <input
+                   type="radio"
+                   name="dsp_arm"
+                   value={arm.value}
+                   checked={(processingOptions.dsp_arm ?? 'arm_a') === arm.value}
+                   onChange={() => setProcessingOptions({ dsp_arm: arm.value as SubmitTranscriptionOptions['dsp_arm'] })}
+                   className="h-4 w-4"
+                 />
+                 <span>{arm.label}</span>
+               </label>
+             ))}
+           </fieldset>
           <div className="mt-4 flex items-center justify-center gap-3">
             <button
               type="button"
@@ -675,11 +650,7 @@ export default function NewRecordingPage() {
               return;
             }
             setSelectedFileError(null);
-            setProcessingOptions({
-              high_pass_enabled: false,
-              high_pass_cutoff_hz: 80,
-              background_noise_reduction_enabled: false,
-            });
+            setProcessingOptions({ dsp_arm: 'arm_a' });
             setSelectedFile(file);
           }}
         />

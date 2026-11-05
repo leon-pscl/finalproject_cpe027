@@ -56,7 +56,14 @@ def resolve_processing_options(settings: Any, options: ProcessingOptions | None)
     """Resolve and validate options into one media configuration."""
     raw = options if options is not None else _baseline_options()
     parsed = ProcessingOptions.model_validate(raw.model_dump() if hasattr(raw, "model_dump") else raw)
-    high_pass, denoising, cutoff, warning = _effective_stage_flags(settings, parsed)
+    arm = parsed.dsp_arm
+    if arm:
+        high_pass = arm != "arm_a"
+        denoising = False
+        cutoff = int(parsed.high_pass_cutoff_hz)
+        warning = None
+    else:
+        high_pass, denoising, cutoff, warning = _effective_stage_flags(settings, parsed)
 
     # Both the server switch and explicit stage toggles can activate the media
     # preparation DSP path. Individual stage flags remain independent; a master
@@ -67,6 +74,7 @@ def resolve_processing_options(settings: Any, options: ProcessingOptions | None)
 
     config = DSPConfig(
         bypass=bypass,
+        evaluation_arm=arm or "",
         high_pass_enabled=high_pass,
         high_pass_cutoff_hz=float(cutoff),
         spectral_gating_enabled=denoising,
@@ -81,7 +89,7 @@ def resolve_processing_options(settings: Any, options: ProcessingOptions | None)
         options=parsed,
         config=config,
         applied_enhancement=False,
-        requested_profile=parsed.requested_profile or "baseline",
+        requested_profile=parsed.requested_profile or (f"dsp_arm:{arm}" if arm else ("baseline" if not (high_pass or denoising) else "experimental")),
         level_policy_id="loudnorm-i20-tp-2-lra7",
         operations_applied={
             "decode_validate": True,

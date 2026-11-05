@@ -176,6 +176,7 @@ JobDocument.model_rebuild()
 class ProcessingOptions(BaseModel):
     schema_version: str = "1"
     requested_profile: str | None = None
+    dsp_arm: str | None = None
     high_pass_enabled: bool = False
     high_pass_cutoff_hz: int = Field(default=80, ge=1, le=500)
     background_noise_reduction_enabled: bool = False

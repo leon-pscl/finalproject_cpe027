@@ -812,6 +812,14 @@ async function failure(res: Response): Promise<Error> {
 
 /** Uploads the recording; the backend transcribes it with a pretrained Whisper model. */
 export interface SubmitTranscriptionOptions {
+  dsp_arm?:
+    | 'arm_a'
+    | 'hp'
+    | 'hp+sg'
+    | 'hp_wiener'
+    | 'hp_wiener_oa'
+    | 'hp_ffmpeg';
+  // Legacy toggles retained for compatibility.
   high_pass_enabled?: boolean;
   high_pass_cutoff_hz?: number;
   background_noise_reduction_enabled?: boolean;
