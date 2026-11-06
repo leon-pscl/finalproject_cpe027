@@ -643,10 +643,15 @@ def run_tier1(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     rtf = elapsed / max(audio_duration, 1e-9)
                     improvement = None
                     if is_noisy:
-                        enhanced_audio = dsp.load_audio(processed.dsp_path)
-                        improvement = snr_improvement_db(clean_audio, noisy_audio, enhanced_audio)
-                        if improvement != improvement:
-                            improvement = None
+                        # arm_a is the no-DSP baseline: its SNR gain is defined as 0
+                        # so the metric does not reflect DSP/IO/normalization artifacts.
+                        if condition in {"arm_a", "A"}:
+                            improvement = 0.0
+                        else:
+                            enhanced_audio = dsp.load_audio(processed.dsp_path)
+                            improvement = snr_improvement_db(clean_audio, noisy_audio, enhanced_audio)
+                            if improvement != improvement:
+                                improvement = None
 
                     print(
                         f"    WER {wer_value:.1%} | CER {cer_value:.1%} | "
