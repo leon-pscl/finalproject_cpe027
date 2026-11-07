@@ -1,0 +1,13 @@
+scope,condition,n,wer_mean_pct,cer_mean_pct
+overall,arm_a,300,7.5138,3.2249
+overall,high_pass,300,7.5093,3.2204
+overall,hp_ffmpeg,300,8.2749,3.6236
+overall,hp_wiener_oa,300,7.6381,3.2905
+5-10m,arm_a,160,7.4872,3.215
+5-10m,high_pass,160,7.5008,3.1998
+5-10m,hp_ffmpeg,160,8.2667,3.6158
+5-10m,hp_wiener_oa,160,7.5831,3.244
+<5m,arm_a,140,7.5442,3.2362
+<5m,high_pass,140,7.5189,3.244
+<5m,hp_ffmpeg,140,8.2842,3.6326
+<5m,hp_wiener_oa,140,7.701,3.3437

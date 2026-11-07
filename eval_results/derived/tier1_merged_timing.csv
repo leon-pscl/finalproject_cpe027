@@ -1,0 +1,5 @@
+condition,n,rtf_mean,rtf_sd,seconds_mean,seconds_sd,overhead_rtf_mean,overhead_rtf_ci_lo,overhead_rtf_ci_hi,overhead_seconds_mean,overhead_seconds_ci_lo,overhead_seconds_ci_hi
+arm_a,65,0.072,0.0048,49.2687,6.7061,0.0,0.0,0.0,0.0,0.0,0.0
+high_pass,195,0.084,0.0048,57.4243,7.2661,0.012,0.0113,0.0124,8.1556,7.4776,8.8336
+hp_ffmpeg,65,0.0797,0.0047,54.4845,7.0703,0.0077,0.0071,0.0083,5.2158,4.643,5.7411
+hp_wiener_oa,65,0.0822,0.005,56.188,7.2894,0.0102,0.0096,0.0109,6.9193,6.2487,7.5223

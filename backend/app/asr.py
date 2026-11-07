@@ -73,16 +73,29 @@ def get_model():
             os.environ.setdefault("OMP_NUM_THREADS", str(threads))
             os.environ.setdefault("MKL_NUM_THREADS", str(threads))
             os.environ.setdefault("OPENBLAS_NUM_THREADS", str(threads))
+            device = s.whisper_device
+            compute_type = s.whisper_compute_type
+            if str(device).lower() == "cuda":
+                try:
+                    import ctypes
+                    ctypes.CDLL("libcublas.so.12")
+                    import ctranslate2
+                    if ctranslate2.get_cuda_device_count() == 0:
+                        raise RuntimeError("no CUDA device")
+                except Exception:  # noqa: BLE001
+                    device = "cpu"
+                    compute_type = "int8"
+
             logging.getLogger(__name__).info(
-                "Loading faster-whisper model %s with %s thread(s)", s.whisper_model, threads
+                "Loading faster-whisper model %s with %s thread(s) on %s", s.whisper_model, threads, device
             )
 
             from faster_whisper import WhisperModel
 
             _model = WhisperModel(
                 s.whisper_model,
-                device=s.whisper_device,
-                compute_type=s.whisper_compute_type,
+                device=device,
+                compute_type=compute_type,
                 download_root=s.model_cache_dir,
                 cpu_threads=threads,
                 num_workers=1,
