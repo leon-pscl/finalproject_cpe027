@@ -1,0 +1,7 @@
+Tier,Metric,Condition,Mean Δ (pp),95% CI (pp),Holm p,dz,Win / Loss / Tie
+1,WER,high_pass,+0.12,−0.15 to +0.49,0.94,0.12,28 / 35 / 2
+1,WER,hp_ffmpeg,−0.73,−0.86 to −0.60,< 0.001,−0.69,9 / 55 / 1
+1,WER,hp_wiener_oa,−0.02,−0.30 to +0.33,0.53,−0.02,28 / 36 / 1
+1,CER,high_pass,+0.10,−0.06 to +0.26,1.00,0.16,32 / 33 / 0
+1,CER,hp_ffmpeg,−0.41,−0.65 to −0.26,< 0.001,−0.53,10 / 54 / 1
+1,CER,hp_wiener_oa,+0.04,−0.07 to +0.15,1.00,0.06,28 / 36 / 1

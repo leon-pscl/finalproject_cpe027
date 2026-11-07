@@ -1,0 +1,5 @@
+Tier,Condition,RTF (SD),"Processing time, s (SD)","Overhead vs arm_a, s (95% CI)"
+1,arm_a,0.072 (0.005),49.3 (6.7),—
+1,high_pass,0.084 (0.005),57.4 (7.3),+8.2 (7.5 to 8.8)
+1,hp_ffmpeg,0.080 (0.005),54.5 (7.1),+5.2 (4.6 to 5.7)
+1,hp_wiener_oa,0.082 (0.005),56.2 (7.3),+6.9 (6.2 to 7.5)
